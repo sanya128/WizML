@@ -2,8 +2,8 @@ import streamlit as st
 import numpy as np
 import pandas as pd
 from ucimlrepo import fetch_ucirepo
-from WizML.ml_models.log_reg import logistic_regression
-from WizML.ml_models.ran_for import random_forest_classifier
+from ml_models.log_reg import logistic_regression
+from ml_models.ran_for import random_forest_classifier
 import math 
 
 try:
