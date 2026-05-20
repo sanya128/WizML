@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html>
+<head>
+<style>
+  *{margin:0;padding:0;box-sizing:border-box;}
+  body{background:#000;display:flex;flex-direction:column;align-items:center;justify-content:center;height:200px;font-family:'Courier New',monospace;}
+  #scene{position:relative;width:160px;height:120px;}
+  canvas{display:block;}
+  #msg{color:#1a8cff;font-size:13px;letter-spacing:0.1em;margin-top:16px;text-align:center;}
+  #done{color:#47aaff;font-size:13px;letter-spacing:0.1em;margin-top:16px;display:none;text-align:center;}
+</style>
+</head>
+<body>
+<canvas id="bc" width="160" height="120"></canvas>
+<div id="msg">LOADING DATASET...</div>
+<div id="done">DATASET READY</div>
+<script>
+const canvas = document.getElementById('bc');
+const ctx = canvas.getContext('2d');
+const W=160, H=120;
+const cx=W/2, cy=H/2+5;
+const BW=50, BH=65;
+
+let frame=0, totalFrames=90, done=false;
+
+const blue1='#1a8cff', blue2='#0a3caf', blue3='#47aaff', spine='#0d73e0';
+
+function drawPixelRect(x,y,w,h,col,pixSize=3){
+  ctx.fillStyle=col;
+  for(let py=y;py<y+h;py+=pixSize){
+    for(let px=x;px<x+w;px+=pixSize){
+      ctx.fillRect(px,py,pixSize-1,pixSize-1);
+    }
+  }
+}
+
+function drawBook(progress){
+  ctx.clearRect(0,0,W,H);
+  const lx=cx-BW-2, rx=cx+2;
+  const ty=cy-BH/2, bh=BH;
+
+  // Left cover
+  drawPixelRect(lx, ty, BW, bh, blue2);
+  // Right cover
+  drawPixelRect(rx, ty, BW, bh, blue2);
+  // Spine
+  drawPixelRect(cx-2, ty, 4, bh, spine);
+
+  // Pages - fan effect
+  const pageCount = 8;
+  for(let i=0;i<pageCount;i++){
+    const t = i/(pageCount-1);
+    const turned = t < progress;
+    const pageX = turned ? rx+2 : lx+2;
+    const pageW = BW-4;
+    const shade = turned
+      ? `rgb(${Math.round(10+t*15)},${Math.round(60+t*30)},${Math.round(110+t*40)})`
+      : `rgb(${Math.round(180-t*20)},${Math.round(215-t*20)},${Math.round(240-t*20)})`;
+
+    // Turning page arc
+    if(Math.abs(t-progress)<0.15){
+      const flip = (t-progress+0.15)/0.3;
+      const arcW = Math.abs(Math.cos(flip*Math.PI))*pageW;
+      const arcX = flip<0.5 ? lx+2+pageW-arcW : rx+2;
+      drawPixelRect(arcX, ty+3, arcW, bh-6, '#3399ff', 2);
+    } else {
+      drawPixelRect(pageX, ty+3, pageW, bh-6, shade, 2);
+    }
+  }
+
+  // Pixel line details on covers
+  for(let py=ty+6;py<ty+bh-6;py+=9){
+    ctx.fillStyle=blue3;
+    ctx.fillRect(lx+6,py,BW-12,1);
+    ctx.fillRect(rx+6,py,BW-12,1);
+  }
+}
+
+function animate(){
+  if(done) return;
+  frame++;
+  const progress = Math.min(1, frame/totalFrames);
+  drawBook(progress);
+
+  if(progress>=1){
+    done=true;
+    document.getElementById('msg').style.display='none';
+    document.getElementById('done').style.display='block';
+    return;
+  }
+  requestAnimationFrame(animate);
+}
+
+animate();
+</script>
+</body>
+</html>

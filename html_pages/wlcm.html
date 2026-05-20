@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>WizML</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+ 
+  body {
+    background: #000;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    min-height: 100vh;
+    font-family: 'Courier New', monospace;
+    overflow: hidden;
+  }
+ 
+  #scene {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 48px;
+  }
+ 
+  /* ── Pixel canvas for WizML assembly ── */
+  #pixel-canvas {
+    display: block;
+    image-rendering: pixelated;
+  }
+ 
+  /* ── Typewriter line ── */
+  #tagline {
+    font-family: 'Courier New', monospace;
+    font-size: clamp(18px, 2.5vw, 26px);
+    color: #1a8cff;
+    letter-spacing: 0.08em;
+    min-height: 2em;
+    text-align: center;
+    position: relative;
+  }
+ 
+  #tagline-text {
+    display: inline;
+  }
+ 
+  #cursor {
+    display: inline-block;
+    width: 2px;
+    height: 1.1em;
+    background: #1a8cff;
+    vertical-align: text-bottom;
+    margin-left: 2px;
+    animation: blink 0.7s step-end infinite;
+    opacity: 0;
+  }
+ 
+  @keyframes blink {
+    0%, 100% { opacity: 1; }
+    50% { opacity: 0; }
+  }
+ 
+  /* ── Spark particles ── */
+  .spark {
+    position: absolute;
+    pointer-events: none;
+    border-radius: 50%;
+    animation: spark-fly linear forwards;
+  }
+ 
+  @keyframes spark-fly {
+    0%   { transform: translate(0,0) scale(1); opacity: 1; }
+    100% { transform: translate(var(--dx), var(--dy)) scale(0); opacity: 0; }
+  }
+ 
+  /* ── Enter button ── */
+  #enter-btn {
+    display: none;
+    margin-top: 8px;
+    padding: 14px 40px;
+    border: 1.5px solid #1a8cff;
+    background: transparent;
+    color: #1a8cff;
+    font-family: 'Courier New', monospace;
+    font-size: 16px;
+    letter-spacing: 0.15em;
+    cursor: pointer;
+    border-radius: 4px;
+    transition: background 0.2s, color 0.2s;
+  }
+  #enter-btn:hover {
+    background: #1a8cff;
+    color: #000;
+  }
+</style>
+</head>
+<body>
+ 
+<div id="scene">
+  <canvas id="pixel-canvas"></canvas>
+  <div id="tagline">
+    <span id="tagline-text"></span><span id="cursor"></span>
+  </div>
+  <button id="enter-btn">ENTER PLATFORM</button>
+</div>
+ 
+<script>
+// ─────────────────────────────────────────────
+// 1. PIXEL FONT — 5×7 bitmap for each character
+// ─────────────────────────────────────────────
+const FONT = {
+  W: [
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,0,1,0,1],
+    [1,0,1,0,1],
+    [1,1,0,1,1],
+    [1,1,0,1,1],
+    [1,0,0,0,1],
+  ],
+  i: [
+    [0,1,0,0,0],
+    [0,0,0,0,0],
+    [0,1,0,0,0],
+    [0,1,0,0,0],
+    [0,1,0,0,0],
+    [0,1,0,0,0],
+    [0,1,1,0,0],
+  ],
+  z: [
+    [0,0,0,0,0],
+    [0,0,0,0,0],
+    [1,1,1,1,1],
+    [0,0,0,1,0],
+    [0,0,1,0,0],
+    [0,1,0,0,0],
+    [1,1,1,1,1],
+  ],
+  M: [
+    [1,0,0,0,1],
+    [1,1,0,1,1],
+    [1,0,1,0,1],
+    [1,0,1,0,1],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+    [1,0,0,0,1],
+  ],
+  L: [
+    [1,0,0,0,0],
+    [1,0,0,0,0],
+    [1,0,0,0,0],
+    [1,0,0,0,0],
+    [1,0,0,0,0],
+    [1,0,0,0,0],
+    [1,1,1,1,1],
+  ],
+};
+ 
+const WORD = ['W','i','z','M','L'];
+const PIXEL = 12;       // pixel block size
+const GAP   = 4;        // gap between letters
+const COLS  = 5;        // glyph width
+const ROWS  = 7;        // glyph height
+ 
+// Compute total canvas dimensions
+const totalW = WORD.length * (COLS * PIXEL + GAP) - GAP;
+const totalH = ROWS * PIXEL;
+ 
+const canvas = document.getElementById('pixel-canvas');
+canvas.width  = totalW;
+canvas.height = totalH;
+const ctx = canvas.getContext('2d');
+ 
+// ── Collect all pixel targets ──
+const targets = []; // {x, y, col}
+WORD.forEach((ch, li) => {
+  const offX = li * (COLS * PIXEL + GAP);
+  const glyph = FONT[ch];
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      if (glyph[r][c]) {
+        targets.push({
+          tx: offX + c * PIXEL,
+          ty: r * PIXEL,
+          col: pickBlue(r, c, li),
+        });
+      }
+    }
+  }
+});
+ 
+// function pickBlue() {
+//   // Vary slightly for depth
+//   const hues = ['#1a8cff','#3399ff','#0d73e0','#47aaff','#0a5fc9'];
+//   return hues[Math.floor(Math.random() * hues.length)];
+// }
+function pickBlue(row, col, letterIndex) {
+  // Gradient based on position: top = light teal, middle = blue, bottom = dark blue
+  const rowRatio = row / 6;        // 0 (top) → 1 (bottom)
+  const colRatio = col / 4;        // 0 (left) → 1 (right)
+  const letterRatio = letterIndex / 4; // 0 (W) → 1 (L)
+
+  // Color stops: light teal → mid blue → dark blue
+  const stops = [
+    [0,   [140, 235, 245]],   // pale aqua      #8cebf5
+    [0.1, [80,  220, 235]],   // light teal     #50dce6
+    [0.2, [50,  195, 230]],   // teal blue      #32c3e6
+    [0.3, [30,  175, 240]],   // sky blue       #1eaff0
+    [0.4, [25,  155, 255]],   // bright blue    #199bff
+    [0.5, [20,  130, 245]],   // mid blue       #1482f5
+    [0.65,[15,  90,  210]],   // deeper blue    #0f5ad2
+    [0.8, [10,  60,  175]],   // dark blue      #0a3caf
+    [1.0, [4,   30,  110]],   // deep navy      #041e6e
+  ];
+
+  // Blend row + slight letter offset for diagonal feel
+  const t = Math.min(1, rowRatio);
+
+  let lower = stops[0], upper = stops[stops.length - 1];
+  for (let i = 0; i < stops.length - 1; i++) {
+    if (t >= stops[i][0] && t <= stops[i+1][0]) {
+      lower = stops[i]; upper = stops[i+1]; break;
+    }
+  }
+
+  const range = upper[0] - lower[0];
+  const f = range === 0 ? 0 : (t - lower[0]) / range;
+  const r = Math.round(lower[1][0] + (upper[1][0] - lower[1][0]) * f);
+  const g = Math.round(lower[1][1] + (upper[1][1] - lower[1][1]) * f);
+  const b = Math.round(lower[1][2] + (upper[1][2] - lower[1][2]) * f);
+
+  // Add small per-pixel noise so adjacent pixels aren't identical
+  const noise = () => Math.floor(Math.random() * 20) - 10;
+  return `rgb(${Math.min(255,Math.max(0,r+noise()))},${Math.min(255,Math.max(0,g+noise()))},${Math.min(255,Math.max(0,b+noise()))})`;
+}
+ 
+// ── Each pixel starts as a scattered particle ──
+const particles = targets.map(t => ({
+  x: Math.random() * totalW,
+  y: Math.random() * totalH,
+  tx: t.tx,
+  ty: t.ty,
+  col: t.col,
+  vx: 0, vy: 0,
+  settled: false,
+  settledAt: 0,
+}));
+ 
+// ── Stagger arrival: delay proportional to distance + small random ──
+const DURATION   = 2200;  // ms for assembly
+const START_WAIT = 400;   // ms before moving
+ 
+let startTime = null;
+ 
+function easeOut(t) {
+  return 1 - Math.pow(1 - t, 3);
+}
+ 
+function drawPixels(ts) {
+  ctx.clearRect(0, 0, totalW, totalH);
+ 
+  const elapsed = ts - startTime - START_WAIT;
+  const progress = Math.max(0, Math.min(1, elapsed / DURATION));
+ 
+  particles.forEach(p => {
+    const t = easeOut(progress + (Math.random() * 0.001 - 0.0005));
+    const x = p.x + (p.tx - p.x) * Math.min(progress + 0.3 * Math.random() * progress, 1);
+    const y = p.y + (p.ty - p.y) * Math.min(progress + 0.3 * Math.random() * progress, 1);
+ 
+    // Simple lerp
+    p.cx = p.cx !== undefined ? p.cx + (p.tx - p.cx) * 0.06 : p.x;
+    p.cy = p.cy !== undefined ? p.cy + (p.ty - p.cy) * 0.06 : p.y;
+ 
+    const alpha = 0.3 + progress * 0.7;
+    ctx.globalAlpha = alpha;
+    const px = Math.round(p.cx), py = Math.round(p.cy);
+
+  });
+ 
+  ctx.globalAlpha = 1;
+}
+function blendRGB(t) {
+  const stops = [
+    [0,[140,235,245]],[0.1,[80,220,235]],[0.2,[50,195,230]],
+    [0.3,[30,175,240]],[0.4,[25,155,255]],[0.5,[20,130,245]],
+    [0.65,[15,90,210]],[0.8,[10,60,175]],[1.0,[4,30,110]],
+  ];
+  let lo=stops[0], hi=stops[stops.length-1];
+  for (let i=0;i<stops.length-1;i++) {
+    if (t>=stops[i][0]&&t<=stops[i+1][0]){lo=stops[i];hi=stops[i+1];break;}
+  }
+  const f = (hi[0]-lo[0])===0 ? 0 : (t-lo[0])/(hi[0]-lo[0]);
+  return [
+    Math.round(lo[1][0]+(hi[1][0]-lo[1][0])*f),
+    Math.round(lo[1][1]+(hi[1][1]-lo[1][1])*f),
+    Math.round(lo[1][2]+(hi[1][2]-lo[1][2])*f),
+  ];
+}
+// Smoother version: pure lerp each frame
+function animateAssembly(ts) {
+  if (!startTime) startTime = ts;
+  ctx.clearRect(0, 0, totalW, totalH);
+ 
+  const elapsed = Math.max(0, ts - startTime - START_WAIT);
+  const progress = Math.min(1, elapsed / DURATION);
+  const ep = easeOut(progress);
+ 
+  particles.forEach(p => {
+    if (!p.initialized) {
+      p.cx = p.x; p.cy = p.y;
+      p.initialized = true;
+    }
+    p.cx += (p.tx - p.cx) * (0.035 + 0.02 * ep);
+    p.cy += (p.ty - p.cy) * (0.035 + 0.02 * ep);
+ 
+    // Glow stronger as settled
+    const dist = Math.hypot(p.cx - p.tx, p.cy - p.ty);
+    const settled = dist < 1.5;
+    const alpha = settled ? 1 : 0.4 + ep * 0.6;
+ 
+    ctx.globalAlpha = alpha;
+    const px = Math.round(p.cx), py = Math.round(p.cy);
+    ctx.fillStyle = p.col;
+    ctx.fillRect(px, py, PIXEL - 1, PIXEL - 1);
+
+    // Sub-pixel boundary detail
+    const sub = 3, sw = (PIXEL-1)/sub, sh = (PIXEL-1)/sub;
+    const t = py / (ROWS * PIXEL);
+    for (let sy = 0; sy < sub; sy++) {
+        for (let sx = 0; sx < sub; sx++) {
+            const isBoundary = sx===0||sx===sub-1||sy===0||sy===sub-1;
+            if (!isBoundary) continue;
+            const edgeT = Math.max(0, Math.min(1, t + (sy/(sub-1)-0.5)*0.25));
+            const [er,eg,eb] = blendRGB(edgeT);
+            const isCorner = (sx===0||sx===sub-1)&&(sy===0||sy===sub-1);
+            const shift = isCorner ? 30 : 15;
+            const s = (sy===0||sx===0) ? shift : -shift;
+            const n = ()=>Math.floor(Math.random()*10)-5;
+            ctx.fillStyle = `rgb(${Math.min(255,Math.max(0,er+s+n()))},${Math.min(255,Math.max(0,eg+s+n()))},${Math.min(255,Math.max(0,eb+s+n()))})`;
+            ctx.fillRect(px+sx*sw, py+sy*sh, sw, sh);
+        }
+    }
+  });
+ 
+  ctx.globalAlpha = 1;
+ 
+    const allSettled = particles.every(p => Math.hypot(p.cx - p.tx, p.cy - p.ty) < 2);
+    if (!allSettled) {
+        requestAnimationFrame(animateAssembly);
+    } else {
+        // Snap all to final position WITH sub-pixel detail
+        ctx.clearRect(0, 0, totalW, totalH);
+        particles.forEach(p => {
+            const px = p.tx, py = p.ty;
+            ctx.fillStyle = p.col;
+            ctx.fillRect(px, py, PIXEL - 1, PIXEL - 1);
+
+            const sub = 3, sw = (PIXEL-1)/sub, sh = (PIXEL-1)/sub;
+            const t = py / (ROWS * PIXEL);
+            for (let sy = 0; sy < sub; sy++) {
+                for (let sx = 0; sx < sub; sx++) {
+                    const isBoundary = sx===0||sx===sub-1||sy===0||sy===sub-1;
+                    if (!isBoundary) continue;
+                    const edgeT = Math.max(0, Math.min(1, t + (sy/(sub-1)-0.5)*0.25));
+                    const [er,eg,eb] = blendRGB(edgeT);
+                    const isCorner = (sx===0||sx===sub-1)&&(sy===0||sy===sub-1);
+                    const shift = isCorner ? 30 : 15;
+                    const s = (sy===0||sx===0) ? shift : -shift;
+                    const n = ()=>Math.floor(Math.random()*10)-5;
+                    ctx.fillStyle = `rgb(${Math.min(255,Math.max(0,er+s+n()))},${Math.min(255,Math.max(0,eg+s+n()))},${Math.min(255,Math.max(0,eb+s+n()))})`;
+                    ctx.fillRect(px+sx*sw, py+sy*sh, sw, sh);
+                }
+            }
+        });
+        setTimeout(startTypewriter, 300);
+    }
+//   const allSettled = particles.every(p => Math.hypot(p.cx - p.tx, p.cy - p.ty) < 2);
+//   if (!allSettled) {
+//     requestAnimationFrame(animateAssembly);
+//   } else {
+//     // Snap all to final position
+//     ctx.clearRect(0, 0, totalW, totalH);
+//     particles.forEach(p => {
+//       ctx.fillStyle = p.col;
+//       ctx.fillRect(p.tx, p.ty, PIXEL - 1, PIXEL - 1);
+//     });
+//     // Start typewriter
+//     setTimeout(startTypewriter, 300);
+//   }
+}
+ 
+requestAnimationFrame(animateAssembly);
+ 
+// ─────────────────────────────────────────────
+// 2. TYPEWRITER with SPARKS
+// ─────────────────────────────────────────────
+const MESSAGE = "I solemly swear that I am upto no good";
+const CHAR_DELAY = 60;    // ms per character
+ 
+const taglineEl = document.getElementById('tagline-text');
+const cursorEl  = document.getElementById('cursor');
+const taglineContainer = document.getElementById('tagline');
+const enterBtn  = document.getElementById('enter-btn');
+ 
+function spawnSpark(container) {
+  const count = 3 + Math.floor(Math.random() * 4);
+  for (let i = 0; i < count; i++) {
+    const s = document.createElement('span');
+    s.className = 'spark';
+    const size = 3 + Math.random() * 4;
+    const angle = Math.random() * Math.PI * 2;
+    const dist  = 20 + Math.random() * 40;
+    const duration = 300 + Math.random() * 400;
+    const colors = ['#1a8cff','#47aaff','#ffffff','#7dc8ff','#0d73e0'];
+ 
+    s.style.cssText = `
+      width:${size}px; height:${size}px;
+      background:${colors[Math.floor(Math.random()*colors.length)]};
+      left:${container.offsetWidth + 4}px;
+      top:50%;
+      --dx:${Math.cos(angle)*dist}px;
+      --dy:${Math.sin(angle)*dist}px;
+      animation-duration:${duration}ms;
+    `;
+    taglineContainer.appendChild(s);
+    setTimeout(() => s.remove(), duration + 50);
+  }
+}
+ 
+function startTypewriter() {
+  cursorEl.style.opacity = '1';
+  let i = 0;
+ 
+  function typeNext() {
+    if (i < MESSAGE.length) {
+      taglineEl.textContent += MESSAGE[i];
+      // Spawn sparks every few chars
+      if (i % 2 === 0) spawnSpark(taglineContainer);
+      i++;
+      setTimeout(typeNext, CHAR_DELAY + Math.random() * 40);
+    } else {
+      // Done — show button
+      setTimeout(() => {
+        cursorEl.style.animation = 'none';
+        cursorEl.style.opacity = '0';
+        enterBtn.style.display = 'inline-block';
+        enterBtn.style.animation = 'fadeIn 0.6s ease forwards';
+      }, 600);
+    }
+  }
+ 
+  typeNext();
+}
+ 
+enterBtn.addEventListener('click', () => {
+    // Target the hidden Streamlit button and click it
+    window.parent.document.querySelector('[data-testid="stButton"] button').click();
+});
+
+</script>
+</body>
+</html>
