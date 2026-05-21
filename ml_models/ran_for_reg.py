@@ -12,7 +12,7 @@ from typing import List
 import pandas as pd
 import numpy as np
 
-def ran_for_reg(df: pd.DataFrame, features: List[str], target: List[str]):
+def dec_tree_reg(df: pd.DataFrame, features: List[str], target: List[str]):
     
     X = df[features]
     y = df[target]
@@ -25,7 +25,7 @@ def ran_for_reg(df: pd.DataFrame, features: List[str], target: List[str]):
     # X_train_pca= pca.fit_transform(X_train_scaled)
     # X_test_pca=pca.fit(X_test_scaled)
 
-    model= RandomForestRegressor(n_estimators=100, random_state=42)
+    model= DecisionTreeRegressor(max_depth=5, random_state=42)
     model.fit(X_train, y_train)
 
     y_pred=model.predict(X_test)
