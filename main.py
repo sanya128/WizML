@@ -10,6 +10,10 @@ from ml_models.n_bayes import naive_bayes
 from ml_models.knn import k_neighbor
 from ml_models.dec_tree import dec_tree
 from ml_models.dec_tree_reg import dec_tree_reg
+from ml_models.ran_for_reg import ran_for_reg
+from ml_models.ridge_reg import ridge_reg
+from ml_models.lasso_reg import lasso_reg
+from ml_models.svr import svr
 import streamlit.components.v1 as components
 import os
 import math 
@@ -32,6 +36,7 @@ def welcome_page():
         /* old theme */
         /* .stApp { background: #000000; } */
         .block-container { padding: 0 !important; max-width: 100% !important; }
+        iframe { background: transparent !important; border: none !important; }
         /* Hide visually but keep clickable in DOM */
         div[data-testid="stButton"] {
             position: absolute;
@@ -149,6 +154,15 @@ def show_main_platform():
         .stDataFrame * { border-color: #1a3550 !important; }
         /* dataframe index column */
         .stDataFrame th:first-child { color: #1a8cff !important; }
+        /* force ALL dataframe header cells including first row */
+        [data-testid="stDataFrame"] [role="columnheader"] { 
+            background-color: #0f3460 !important; 
+            color: #a8d8ff !important; 
+        }
+        [data-testid="stDataFrame"] [role="gridcell"] { 
+            background-color: #1a1a2e !important; 
+            color: #c8d8f0 !important; 
+        }
         /* book loader iframe background */
         iframe { background: #080810 !important; }
                 
@@ -229,58 +243,49 @@ def show_main_platform():
 
         model_select=st.sidebar.selectbox(
             label = 'Select the algorithm',
-            options = ('Linear Regression','Ridge & Lasso Regression', 'Decision Tree Regression', 'Support Vector Regression', 'Random Forest Regression'),
+            options = ('Linear Regression','Ridge Regression', 'Lasso Regression', 'Decision Tree Regression', 'Support Vector Regression', 'Random Forest Regression'),
             index=None,
             placeholder="Select"
         )
 
-    if(dataset_select=='Iris'):
-        iris = fetch_ucirepo(id=53) 
-        X = iris.data.features 
-        y = iris.data.targets 
-        df=pd.DataFrame(data=X)
-        df['target']=y
+    if dataset_select is not None:
+        if st.session_state.get("last_dataset") != dataset_select:
+            st.session_state.loading_dataset = True
+            st.session_state.last_dataset = dataset_select
+            st.session_state.data = None
+            st.rerun()
+
+    if st.session_state.get("loading_dataset"):
+        book_html_path = os.path.join(BASE_DIR, "html_pages/book_loader.html")
+        with open(book_html_path, "r") as f:
+            book_content = f.read()
+        st.markdown("<p style='color:#47aaff; font-family:Courier New; letter-spacing:0.1em;'>LOADING DATASET...</p>", unsafe_allow_html=True)
+        components.html(book_content, height=220, scrolling=False)
+
+        dataset = st.session_state.last_dataset
+        if dataset == "Iris":
+            iris = fetch_ucirepo(id=53)
+            df = pd.DataFrame(data=iris.data.features)
+            df['target'] = iris.data.targets
+        elif dataset == "Heart Disease":
+            heart_disease = fetch_ucirepo(id=45)
+            df = pd.DataFrame(data=heart_disease.data.features)
+            df['target'] = heart_disease.data.targets
+        elif dataset == "Air Quality":
+            air_quality = fetch_ucirepo(id=360)
+            df = pd.DataFrame(data=air_quality.data.features)
+            df['target'] = air_quality.data.targets
+        elif dataset == "Wine Quality":
+            wine_quality = fetch_ucirepo(id=186)
+            df = pd.DataFrame(data=wine_quality.data.features)
+            df['target'] = wine_quality.data.targets
+
         st.session_state.data = df
+        st.session_state.loading_dataset = False
+        st.rerun()
 
-
-    if(dataset_select=='Heart Disease'):
-        heart_disease = fetch_ucirepo(id=45) 
-        X = heart_disease.data.features 
-        y = heart_disease.data.targets 
-        df=pd.DataFrame(data=X)
-        df['target']=y
-        st.session_state.data = df
-        
-
-    if(dataset_select=='Air Quality'):
-        air_quality = fetch_ucirepo(id=360)  
-        X = air_quality.data.features 
-        y = air_quality.data.targets
-        df=pd.DataFrame(data=X)
-        df['target']=y
-        st.session_state.data = df
-        
-
-    if(dataset_select=='Wine Quality'):
-        wine_quality = fetch_ucirepo(id=186) 
-        X = wine_quality.data.features 
-        y = wine_quality.data.targets 
-        df=pd.DataFrame(data=X)
-        df['target']=y
-        st.session_state.data = df
-    with st.expander(label="View Dataset", expanded=True):
-        if st.session_state.data is None:
-            st.markdown("<span style='color:#555'>No dataset loaded yet.</span>", unsafe_allow_html=True)
-        else:
-            # Show book animation while loading
-            book_html_path = os.path.join(BASE_DIR, "html_pages/book_loader.html")
-            with open(book_html_path, "r") as f:
-                book_content = f.read()
-            components.html(book_content, height=220, scrolling=False)
-            # with open(book_html_path, "r") as f:
-            #     components.html(f.read(), height=220, scrolling=False)
-
-            # inject dataframe theme via markdown
+    elif st.session_state.data is not None:
+        with st.expander(label="View Dataset", expanded=True):
             styled_df = st.session_state.data.style.set_properties(**{
                 'background-color': '#1a1a2e',
                 'color': '#c8d8f0',
@@ -298,6 +303,18 @@ def show_main_platform():
                     ('font-weight', 'bold'),
                     ('letter-spacing', '0.05em'),
                 ]},
+                {'selector': 'th.col_heading', 'props': [
+                    ('background-color', '#0f3460'),
+                    ('color', '#a8d8ff'),
+                    ('font-family', 'Courier New, monospace'),
+                    ('font-size', '13px'),
+                    ('padding', '8px'),
+                    ('font-weight', 'bold'),
+                ]},
+                {'selector': 'th.col_heading.level0', 'props': [
+                    ('background-color', '#0f3460'),
+                    ('color', '#a8d8ff'),
+                ]},
                 {'selector': 'tbody tr:hover td', 'props': [
                     ('background-color', '#16213e'),
                 ]},
@@ -306,56 +323,30 @@ def show_main_platform():
                     ('border-color', '#2a2a4a'),
                 ]},
             ])
-            st.dataframe(
-                styled_df,
-                hide_index=True,
-                use_container_width=True,
-            )
+            st.dataframe(styled_df, hide_index=True, use_container_width=True)
+
+    else:
+        with st.expander(label="View Dataset", expanded=True):
+            st.markdown("<span style='color:#2a4a6a; font-family:Courier New;'>No dataset loaded yet.</span>", unsafe_allow_html=True)
+
             # st.dataframe(st.session_state.data, hide_index=True,
             #              use_container_width=True)
 
 
     
 
-    selected_features = st.multiselect(
-        "Select your features",
-        options=list(st.session_state.data.columns),
-    )
-    selected_target= st.multiselect(
-        "Select your target",
-        options=list(st.session_state.data.columns)
-    )
-    if(model_select=='Logistic Regression'):
-        classification_report=logistic_regression(st.session_state.data, selected_features, selected_target)
-        classification_dataframe = pd.DataFrame(classification_report)
-        accuracy = classification_dataframe["accuracy"].unique()[0]
-        classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-        st.dataframe(classification_dataframe)
-        st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
-
-    if(model_select=='Random Forest'):
-        classification_report= random_forest_classifier(st.session_state.data, selected_features, selected_target)
-        classification_dataframe = pd.DataFrame(classification_report)
-        accuracy = classification_dataframe["accuracy"].unique()[0]
-        classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-        st.dataframe(classification_dataframe)
-        st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
-
-    if(model_select=='Support Vector Machine'):
-        classification_report= support_vector_machine(st.session_state.data, selected_features, selected_target)
-        classification_dataframe = pd.DataFrame(classification_report)
-        accuracy = classification_dataframe["accuracy"].unique()[0]
-        classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-        st.dataframe(classification_dataframe)
-        st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
-
-    if(model_select=='Naive Bayes'):
-        classification_report= naive_bayes(st.session_state.data, selected_features, selected_target)
-        classification_dataframe = pd.DataFrame(classification_report)
-        accuracy = classification_dataframe["accuracy"].unique()[0]
-        classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-        st.dataframe(classification_dataframe)
-        st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
+    if st.session_state.data is not None:
+        selected_features = st.multiselect(
+            "Select your features",
+            options=list(st.session_state.data.columns),
+        )
+        selected_target = st.multiselect(
+            "Select your target",
+            options=list(st.session_state.data.columns)
+        )
+    else:
+        selected_features = []
+        selected_target = []
     
     if selected_features and selected_target:
         if(model_select=='Logistic Regression'):
@@ -435,45 +426,12 @@ def show_main_platform():
             metrics= svr(st.session_state.data, selected_features, selected_target)
             st.dataframe(metrics)
             
-    if(model_select=='K-Nearest Neighbors'):
-        classification_report= k_neighbor(st.session_state.data, selected_features, selected_target)
-        classification_dataframe = pd.DataFrame(classification_report)
-        accuracy = classification_dataframe["accuracy"].unique()[0]
-        classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-        st.dataframe(classification_dataframe)
-        st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
-
-    if(model_select=='Decision Tree'):
-        classification_report= dec_tree(st.session_state.data, selected_features, selected_target)
-        classification_dataframe = pd.DataFrame(classification_report)
-        accuracy = classification_dataframe["accuracy"].unique()[0]
-        classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-        st.dataframe(classification_dataframe)
-        st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
-
-    if(model_select=='Linear Regression'):
-        metrics= linear_regression(st.session_state.data, selected_features, selected_target)
-        st.dataframe(metrics)
-        print(metrics)
-
-    if(model_select=='Decision Tree Regression'):
-        metrics= dec_tree_reg(st.session_state.data, selected_features, selected_target)
-        st.dataframe(metrics)
-        print(metrics)
-
-    if(model_select=='Random Forest Regression'):
-        metrics= ran_for_reg(st.session_state.data, selected_features, selected_target)
-        st.dataframe(metrics)
-        print(metrics)
-
-    
         
 
 
 if st.session_state.logged_in:
-    try:
-        show_main_platform()
-    except:
-        pass
+    show_main_platform()
+
+    
 else:
     welcome_page()
