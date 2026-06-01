@@ -58,7 +58,6 @@ def welcome_page():
         /* old theme */
         /* .stApp { background: #000000; } */
         .block-container { padding: 0 !important; max-width: 100% !important; }
-        iframe { background: transparent !important; border: none !important; }
         /* Hide visually but keep clickable in DOM */
         div[data-testid="stButton"] {
             position: absolute;
@@ -176,15 +175,6 @@ def show_main_platform():
         .stDataFrame * { border-color: #1a3550 !important; }
         /* dataframe index column */
         .stDataFrame th:first-child { color: #1a8cff !important; }
-        /* force ALL dataframe header cells including first row */
-        [data-testid="stDataFrame"] [role="columnheader"] { 
-            background-color: #0f3460 !important; 
-            color: #a8d8ff !important; 
-        }
-        [data-testid="stDataFrame"] [role="gridcell"] { 
-            background-color: #1a1a2e !important; 
-            color: #c8d8f0 !important; 
-        }
         /* book loader iframe background */
         iframe { background: #080810 !important; }
                 
@@ -272,89 +262,25 @@ def show_main_platform():
             placeholder="Select"
         )
 
-    if dataset_select is not None:
-        if st.session_state.get("last_dataset") != dataset_select:
-            st.session_state.loading_dataset = True
-            st.session_state.last_dataset = dataset_select
-            st.session_state.data = None
-            st.rerun()
+    tab1, tab2, tab3 , tab4= st.tabs(["Dataset", "Model results","Visualisation","Description"])
 
-    if st.session_state.get("loading_dataset"):
-        book_html_path = os.path.join(BASE_DIR, "html_pages/book_loader.html")
-        with open(book_html_path, "r") as f:
-            book_content = f.read()
-        st.markdown("<p style='color:#47aaff; font-family:Courier New; letter-spacing:0.1em;'>LOADING DATASET...</p>", unsafe_allow_html=True)
-        components.html(book_content, height=220, scrolling=False)
+    with tab1:
+    
+        
 
-        dataset = st.session_state.last_dataset
-        if dataset == "Iris":
-            iris = fetch_ucirepo(id=53)
-            df = pd.DataFrame(data=iris.data.features)
-            df['target'] = iris.data.targets
-        elif dataset == "Heart Disease":
-            heart_disease = fetch_ucirepo(id=45)
-            df = pd.DataFrame(data=heart_disease.data.features)
-            df['target'] = heart_disease.data.targets
-        elif dataset == "Air Quality":
-            air_quality = fetch_ucirepo(id=360)
-            df = pd.DataFrame(data=air_quality.data.features)
-            df['target'] = air_quality.data.targets
-        elif dataset == "Wine Quality":
-            wine_quality = fetch_ucirepo(id=186)
-            df = pd.DataFrame(data=wine_quality.data.features)
-            df['target'] = wine_quality.data.targets
+        if dataset_select is not None:
+            if st.session_state.get("last_dataset") != dataset_select:
+                st.session_state.loading_dataset = True
+                st.session_state.last_dataset = dataset_select
+                st.session_state.data = None
+                st.rerun()
 
-        st.session_state.data = df
-        st.session_state.loading_dataset = False
-        st.rerun()
-
-    elif st.session_state.data is not None:
-        with st.expander(label="View Dataset", expanded=True):
-            styled_df = st.session_state.data.style.set_properties(**{
-                'background-color': '#1a1a2e',
-                'color': '#c8d8f0',
-                'border-color': '#2a2a4a',
-                'font-family': 'Courier New, monospace',
-                'font-size': '13px'
-            }).set_table_styles([
-                {'selector': 'thead th', 'props': [
-                    ('background-color', '#0f3460'),
-                    ('color', '#a8d8ff'),
-                    ('border-color', '#2a2a4a'),
-                    ('font-family', 'Courier New, monospace'),
-                    ('font-size', '13px'),
-                    ('padding', '8px'),
-                    ('font-weight', 'bold'),
-                    ('letter-spacing', '0.05em'),
-                ]},
-                {'selector': 'th.col_heading', 'props': [
-                    ('background-color', '#0f3460'),
-                    ('color', '#a8d8ff'),
-                    ('font-family', 'Courier New, monospace'),
-                    ('font-size', '13px'),
-                    ('padding', '8px'),
-                    ('font-weight', 'bold'),
-                ]},
-                {'selector': 'th.col_heading.level0', 'props': [
-                    ('background-color', '#0f3460'),
-                    ('color', '#a8d8ff'),
-                ]},
-                {'selector': 'tbody tr:hover td', 'props': [
-                    ('background-color', '#16213e'),
-                ]},
-                {'selector': 'td', 'props': [
-                    ('padding', '6px 10px'),
-                    ('border-color', '#2a2a4a'),
-                ]},
-            ])
-            st.dataframe(styled_df, hide_index=True, use_container_width=True)
-
-    else:
-        with st.expander(label="View Dataset", expanded=True):
-            st.markdown("<span style='color:#2a4a6a; font-family:Courier New;'>No dataset loaded yet.</span>", unsafe_allow_html=True)
-
-            # st.dataframe(st.session_state.data, hide_index=True,
-            #              use_container_width=True)
+        if st.session_state.get("loading_dataset"):
+            book_html_path = os.path.join(BASE_DIR, "html_pages/book_loader.html")
+            with open(book_html_path, "r") as f:
+                book_content = f.read()
+            st.markdown("<p style='color:#47aaff; font-family:Courier New; letter-spacing:0.1em;'>LOADING DATASET...</p>", unsafe_allow_html=True)
+            components.html(book_content, height=220, scrolling=False)
 
             dataset = st.session_state.last_dataset
             if dataset == "Iris":
@@ -419,74 +345,9 @@ def show_main_platform():
                 ])
                 st.dataframe(styled_df, hide_index=True, use_container_width=True, height=200)
 
-    
-
-    if st.session_state.data is not None:
-        selected_features = st.multiselect(
-            "Select your features",
-            options=list(st.session_state.data.columns),
-        )
-        selected_target = st.multiselect(
-            "Select your target",
-            options=list(st.session_state.data.columns)
-        )
-    else:
-        selected_features = []
-        selected_target = []
-    
-    if selected_features and selected_target:
-        if(model_select=='Logistic Regression'):
-            classification_report=logistic_regression(st.session_state.data, selected_features, selected_target)
-            classification_dataframe = pd.DataFrame(classification_report)
-            accuracy = classification_dataframe["accuracy"].unique()[0]
-            classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-            st.dataframe(classification_dataframe)
-            st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
-
-        if(model_select=='Random Forest'):
-            classification_report= random_forest_classifier(st.session_state.data, selected_features, selected_target)
-            classification_dataframe = pd.DataFrame(classification_report)
-            accuracy = classification_dataframe["accuracy"].unique()[0]
-            classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-            st.dataframe(classification_dataframe)
-            st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
-
-        if(model_select=='Support Vector Machine'):
-            classification_report= support_vector_machine(st.session_state.data, selected_features, selected_target)
-            classification_dataframe = pd.DataFrame(classification_report)
-            accuracy = classification_dataframe["accuracy"].unique()[0]
-            classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-            st.dataframe(classification_dataframe)
-            st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
-
-        if(model_select=='Naive Bayes'):
-            classification_report= naive_bayes(st.session_state.data, selected_features, selected_target)
-            classification_dataframe = pd.DataFrame(classification_report)
-            accuracy = classification_dataframe["accuracy"].unique()[0]
-            classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-            st.dataframe(classification_dataframe)
-            st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
-        
-        if(model_select=='K-Nearest Neighbors'):
-            classification_report= k_neighbor(st.session_state.data, selected_features, selected_target)
-            classification_dataframe = pd.DataFrame(classification_report)
-            accuracy = classification_dataframe["accuracy"].unique()[0]
-            classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-            st.dataframe(classification_dataframe)
-            st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
-
-        if(model_select=='Decision Tree'):
-            classification_report= dec_tree(st.session_state.data, selected_features, selected_target)
-            classification_dataframe = pd.DataFrame(classification_report)
-            accuracy = classification_dataframe["accuracy"].unique()[0]
-            classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-            st.dataframe(classification_dataframe)
-            st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
-
-        if(model_select=='Linear Regression'):
-            metrics= linear_regression(st.session_state.data, selected_features, selected_target)
-            st.dataframe(metrics)
-            
+        else:
+            with st.expander(label="View Dataset", expanded=True):
+                st.markdown("<span style='color:#2a4a6a; font-family:Courier New;'>No dataset loaded yet.</span>", unsafe_allow_html=True)
 
                 # st.dataframe(st.session_state.data, hide_index=True,
                 #              use_container_width=True)
@@ -617,12 +478,174 @@ def show_main_platform():
                 st.dataframe(metrics)
                 
             
-        
+    with tab3:
+        if(select_method=='Classification'):
+            col1, col2 = st.columns((2,2))
+            with col1:
+                with st.container(border=True, width="content", height="content"):
+                    classes=np.unique(st.session_state.y)
+                    y_test_binarized =label_binarize(st.session_state.y_test, classes=classes)
+                    n_classes = len(classes)
+                    cmap = plt.cm.get_cmap('tab10', n_classes)
+                    fig,ax=plt.subplots(figsize=(6,5), facecolor='#080810')
+                    ax.set_facecolor('#080810')
+                    for class_index in range(len(np.unique(st.session_state.y))):
+                        y_pred_class=st.session_state.y_pred_prob[:, class_index]
+                        y_test_class=y_test_binarized[:,class_index]
+                        fpr,tpr,thresholds=roc_curve(y_true=y_test_class, y_score=y_pred_class)
+                        auc_score=roc_auc_score(y_true=y_test_class,y_score=y_pred_class)
+                        ax.plot(fpr,tpr, label=f"AUC={auc_score:.2f}",color=cmap(class_index), linewidth=2.5)
+                    ax.plot([0,1],[0,1], "--", color="#4a6a8a", label="random", linewidth=1.5)
+                    ax.set_xlabel("False Positive Rate", fontsize=11, color='#b4d4f0', fontweight='bold')
+                    ax.set_ylabel("True Positive Rate", fontsize=11, color='#b4d4f0', fontweight='bold')
+                    ax.set_title("ROC Curve", fontsize=13, color='#b4d4f0', fontweight='bold')
+                    ax.tick_params(labelsize=10, colors='#b4d4f0')
+
+                    ax.xaxis.label.set_color('#b4d4f0')
+                    ax.yaxis.label.set_color('#b4d4f0')
+                    ax.title.set_color('#b4d4f0')
+
+                    for spine in ax.spines.values():
+                        spine.set_edgecolor('#1a3550')
+                        spine.set_linewidth(1.2)
+
+                    ax.grid(color='#1a3550', linestyle='--', linewidth=0.7, alpha=0.6)
+                    ax.legend(fontsize=10, facecolor='#0d1520', edgecolor='#47aaff', labelcolor='#b4d4f0', loc='lower right', framealpha=0.95)
+                    plt.tight_layout()
+                    st.pyplot(fig, use_container_width=False)
+
+            with col2:
+                with st.container(border=True, width="content", height="content"):
+                    mpl.rcParams.update({
+                        'font.size': 10,
+                        'axes.titlesize': 12,
+                        'axes.labelsize': 11,
+                        'xtick.labelsize': 10,
+                        'ytick.labelsize': 10,
+                        'legend.fontsize': 10,
+                    })
+
+                    y_test_class_cm = st.session_state.y_test.iloc[:,0].to_numpy().ravel()
+                    y_pred_class_cm = st.session_state.y_pred
+                    print(y_test_class_cm)
+                    print(y_pred_class_cm)
+
+                    cm = confusion_matrix(y_test_class_cm,y_pred_class_cm)
+                    class_names = sorted(set(y_test_class_cm) | set(y_pred_class_cm))
+                    fig, ax = plt.subplots(figsize=(7, 6), facecolor='#080810')
+                    ax.set_facecolor('#080810')
+                    im = ax.imshow(cm, interpolation='nearest', cmap='Blues', aspect='auto')
+                    cbar = fig.colorbar(im, ax=ax)
+                    cbar.ax.yaxis.set_tick_params(color='#b4d4f0', labelsize=10)
+                    plt.setp(cbar.ax.yaxis.get_ticklabels(), color='#b4d4f0')
+                    cbar.outline.set_edgecolor('#1a3550')
+                    cbar.outline.set_linewidth(1.2)
+                    cbar.set_label('Count', color='#b4d4f0', fontsize=11, fontweight='bold')
+
+                    thresh = cm.max() / 2
+                    for i in range(cm.shape[0]):
+                        for j in range(cm.shape[1]):
+                            ax.text(j, i, format(cm[i, j], 'd'),
+                                    ha='center', va='center', fontsize=14, fontweight='bold',
+                                    color='white' if cm[i, j] > thresh else '#1a1a2e')
+
+                    ax.set_xticks(range(len(class_names)))
+                    ax.set_yticks(range(len(class_names)))
+                    ax.set_xticklabels(class_names, color='#b4d4f0', fontsize=11, fontweight='bold')
+                    ax.set_yticklabels(class_names, color='#b4d4f0', fontsize=11, fontweight='bold')
+
+                    ax.set_xlabel('Predicted Labels', color='#b4d4f0', fontsize=12, fontweight='bold')
+                    ax.set_ylabel('True Labels', color='#b4d4f0', fontsize=12, fontweight='bold')
+                    ax.set_title('Confusion Matrix', color='#b4d4f0', fontsize=14, fontweight='bold', pad=15)
+
+                    for spine in ax.spines.values():
+                        spine.set_edgecolor('#1a3550')
+                        spine.set_linewidth(1.2)
+
+                    ax.tick_params(colors='#b4d4f0', labelsize=11)
+
+                    plt.tight_layout()
+                    st.pyplot(fig)
+                    mpl.rcParams.update(mpl.rcParamsDefault)
+
+        if(select_method=="Regression"):
+            col1, col2 = st.columns((2, 2))
+            with col1:
+                with st.container(border=True, width="content", height="content"):
+                    if st.session_state.pca_data is not None:
+                        pca_data = st.session_state.pca_data
+                        X_test_pca = pca_data['X_test_pca']
+                        y_test = pca_data['y_test']
+                        bestfit_x = pca_data['bestfit_x']
+                        bestfit_line = pca_data['bestfit_line']
+
+                        fig, ax = plt.subplots(figsize=(5, 4), facecolor='#080810')
+                        ax.set_facecolor('#080810')
+
+                        ax.scatter(X_test_pca[:, 0], y_test,
+                                    color='#47aaff', alpha=0.6, s=50, edgecolors='#47aaff', linewidth=0.5)
+
+                        ax.plot(bestfit_x, bestfit_line, color='#ff6b6b', linewidth=2.5, label='Best Fit Line')
+
+                        
+                        corr = np.corrcoef(X_test_pca[:, 0], y_test)[0, 1]
+                        ax.set_xlabel('PC1', color='#b4d4f0')
+                        ax.set_ylabel('Target', color='#b4d4f0')
+                        ax.set_title(f'PC1 vs Target  (r = {corr:.2f})', color='#b4d4f0', fontsize=12)
+
+                        ax.tick_params(colors='#b4d4f0', labelsize=9)
+                        ax.xaxis.label.set_color('#b4d4f0')
+                        ax.yaxis.label.set_color('#b4d4f0')
+                        ax.title.set_color('#b4d4f0')
+
+                        for spine in ax.spines.values():
+                            spine.set_edgecolor('#1a3550')
+
+                        ax.grid(color='#1a3550', linestyle='--', linewidth=0.5, alpha=0.5)
+                        ax.legend(facecolor='#0d1520', edgecolor='#1a3550', labelcolor='#b4d4f0', fontsize=8)
+                        plt.tight_layout()
+                        st.pyplot(fig, use_container_width=False)
+                    else:
+                        st.markdown("<span style='color:#2a4a6a; font-family:Courier New;'>Run a regression model to see PCA visualization.</span>", unsafe_allow_html=True)
+
+            with col2:
+                with st.container(border=True, width="content", height="content"):
+                    if st.session_state.pca_data is not None:
+                        pca_data = st.session_state.pca_data
+                        X_test_pca = pca_data['X_test_pca']
+                        residuals = pca_data['residuals']
+
+                        fig, ax = plt.subplots(figsize=(5, 4), facecolor='#080810')
+                        ax.set_facecolor('#080810')
+
+                        ax.scatter(X_test_pca[:, 0], residuals, alpha=0.6, s=50,
+                                  color='#47aaff', edgecolors='#47aaff', linewidth=0.5)
+                        ax.axhline(y=0, color='#ff6b6b', linestyle='--', linewidth=2.5, label='Zero Line')
+
+                        ax.set_xlabel('PC1', color='#b4d4f0', fontsize=10)
+                        ax.set_ylabel('Residuals', color='#b4d4f0', fontsize=10)
+                        ax.set_title('Residual Plot', color='#b4d4f0', fontsize=12)
+
+                        ax.tick_params(colors='#b4d4f0', labelsize=9)
+                        ax.xaxis.label.set_color('#b4d4f0')
+                        ax.yaxis.label.set_color('#b4d4f0')
+
+                        for spine in ax.spines.values():
+                            spine.set_edgecolor('#1a3550')
+
+                        ax.grid(color='#1a3550', linestyle='--', linewidth=0.5, alpha=0.5, axis='y')
+                        ax.legend(facecolor='#0d1520', edgecolor='#1a3550', labelcolor='#b4d4f0', fontsize=8)
+
+                        plt.tight_layout()
+                        st.pyplot(fig, use_container_width=False)
+                    else:
+                        st.markdown("<span style='color:#2a4a6a; font-family:Courier New;'>Run a regression model to see residual plot.</span>", unsafe_allow_html=True)
 
 
 if st.session_state.logged_in:
-    show_main_platform()
-
-    
+    try:
+        show_main_platform()
+    except:
+        pass
 else:
     welcome_page()
