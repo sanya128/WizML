@@ -13,7 +13,7 @@ import pandas as pd
 import numpy as np
 
 def ran_for_reg(df: pd.DataFrame, features: List[str], target: List[str]):
-
+    
     X = df[features]
     y = df[target]
     X_train, X_test, y_train, y_test = train_test_split(
@@ -24,7 +24,11 @@ def ran_for_reg(df: pd.DataFrame, features: List[str], target: List[str]):
     X_train_pca = pca.fit_transform(X_train)
     X_test_pca = pca.transform(X_test)
 
-    model = RandomForestRegressor(n_estimators=100, random_state=42)
+    # pca= PCA(n_components=1)
+    # X_train_pca= pca.fit_transform(X_train_scaled)
+    # X_test_pca=pca.fit(X_test_scaled)
+
+    model= RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)
 
     y_pred = model.predict(X_test)
