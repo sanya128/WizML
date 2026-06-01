@@ -58,6 +58,7 @@ def welcome_page():
         /* old theme */
         /* .stApp { background: #000000; } */
         .block-container { padding: 0 !important; max-width: 100% !important; }
+        iframe { background: transparent !important; border: none !important; }
         /* Hide visually but keep clickable in DOM */
         div[data-testid="stButton"] {
             position: absolute;
@@ -175,6 +176,17 @@ def show_main_platform():
         .stDataFrame * { border-color: #1a3550 !important; }
         /* dataframe index column */
         .stDataFrame th:first-child { color: #1a8cff !important; }
+                
+        /* force ALL dataframe header cells including first row */
+        [data-testid="stDataFrame"] [role="columnheader"] { 
+            background-color: #0f3460 !important; 
+            color: #a8d8ff !important; 
+        }
+        [data-testid="stDataFrame"] [role="gridcell"] { 
+            background-color: #1a1a2e !important; 
+            color: #c8d8f0 !important; 
+        }
+                
         /* book loader iframe background */
         iframe { background: #080810 !important; }
                 
@@ -643,9 +655,8 @@ def show_main_platform():
 
 
 if st.session_state.logged_in:
-    try:
-        show_main_platform()
-    except:
-        pass
+    show_main_platform()
+
+    
 else:
     welcome_page()
