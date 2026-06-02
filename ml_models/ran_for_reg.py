@@ -13,20 +13,26 @@ import pandas as pd
 import numpy as np
 
 def ran_for_reg(df: pd.DataFrame, features: List[str], target: List[str]):
-    
+
     X = df[features]
     y = df[target]
     X_train, X_test, y_train, y_test = train_test_split(
         X, y, test_size=0.2, random_state=42
     )
 
-    pca = PCA(n_components=2)
-    X_train_pca = pca.fit_transform(X_train)
-    X_test_pca = pca.transform(X_test)
-
-    # pca= PCA(n_components=1)
-    # X_train_pca= pca.fit_transform(X_train_scaled)
-    # X_test_pca=pca.fit(X_test_scaled)
+    if len(features) > 1:
+        pca = PCA(n_components=2)
+        X_train_pca = pca.fit_transform(X_train)
+        X_test_pca = pca.transform(X_test)
+    else:
+        X_train_pca = X_train.values if hasattr(X_train, 'values') else X_train
+       
+        X_train_pca = X_train_pca.reshape(-1, 1) if X_train_pca.ndim == 1 else X_train_pca
+      
+        X_test_pca = X_test.values if hasattr(X_test, 'values') else X_test
+        
+        X_test_pca = X_test_pca.reshape(-1, 1) if X_test_pca.ndim == 1 else X_test_pca
+        
 
     model= RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)

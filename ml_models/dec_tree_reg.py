@@ -20,9 +20,15 @@ def dec_tree_reg(df: pd.DataFrame, features: List[str], target: List[str]):
         X, y, test_size=0.2, random_state=42
     )
 
-    pca = PCA(n_components=2)
-    X_train_pca = pca.fit_transform(X_train)
-    X_test_pca = pca.transform(X_test)
+    if len(features) > 1:
+        pca = PCA(n_components=2)
+        X_train_pca = pca.fit_transform(X_train)
+        X_test_pca = pca.transform(X_test)
+    else:
+        X_train_pca = X_train.values if hasattr(X_train, 'values') else X_train
+        X_train_pca = X_train_pca.reshape(-1, 1) if X_train_pca.ndim == 1 else X_train_pca
+        X_test_pca = X_test.values if hasattr(X_test, 'values') else X_test
+        X_test_pca = X_test_pca.reshape(-1, 1) if X_test_pca.ndim == 1 else X_test_pca
 
     model = DecisionTreeRegressor(max_depth=5, random_state=42)
     model.fit(X_train_pca, y_train)

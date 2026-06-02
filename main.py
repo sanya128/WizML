@@ -43,6 +43,8 @@ if "y_pred" not in st.session_state:
 if "pca_data" not in st.session_state:
     st.session_state.pca_data = None
 
+if "my_tabs" not in st.session_state:
+    st.session_state.my_tabs = "Dataset"
 
 def welcome_page():
     st.set_page_config(page_title="WizML", layout="centered")
@@ -68,6 +70,7 @@ def welcome_page():
             opacity: 0;
             pointer-events: none;
         }
+        
     </style>
     """, unsafe_allow_html=True)
     # Force black background, hide Streamlit chrome
@@ -195,6 +198,26 @@ def show_main_platform():
         /* dropdown options */
         li[role="option"] { background: #0d1520 !important; color: #b4d4f0 !important; }
         li[role="option"]:hover { background: #1a3550 !important; }
+                
+        /* SUBMIT BUTTON THEME */
+        div.stButton > button {
+            background-color: #0f3460 !important;
+            color: #b4d4f0 !important;
+            border: 1px solid #47aaff !important;
+            border-radius: 10px !important;
+            font-weight: bold !important;
+            min-height: 42px !important;
+            transition: all 0.25s ease !important;
+        }
+
+        div.stButton > button:hover {
+            background-color: #12263a !important;
+            color: white !important;
+            border: 1px solid #6bc1ff !important;
+            box-shadow: 0 0 10px rgba(71,170,255,0.45) !important;
+        }
+
+        
     </style>
     """, unsafe_allow_html=True)
 
@@ -274,10 +297,68 @@ def show_main_platform():
             placeholder="Select"
         )
 
-    tab1, tab2, tab3 , tab4= st.tabs(["Dataset", "Model results","Visualisation","Description"])
+    def switch_to_tab(tab_name):
+        st.session_state.my_tabs = tab_name
+
+    def themed_dataframe(df):
+        styled_df = df.style.set_properties(**{
+            'background-color': '#1a1a2e',
+            'color': '#c8d8f0',
+            'border-color': '#2a2a4a',
+            'font-family': 'Courier New, monospace',
+            'font-size': '13px'
+        }).set_table_styles([
+            {
+                'selector': 'thead th',
+                'props': [
+                    ('background-color', '#0f3460'),
+                    ('color', '#a8d8ff'),
+                    ('border-color', '#2a2a4a'),
+                    ('font-weight', 'bold'),
+                    ('padding', '8px'),
+                ]
+            },
+            {
+                'selector': 'th.row_heading',
+                'props': [
+                    ('background-color', '#0f3460'),
+                    ('color', '#a8d8ff'),
+                    ('border-color', '#2a2a4a'),
+                    ('font-weight', 'bold'),
+                ]
+            },
+            {
+                'selector': 'th.blank',
+                'props': [
+                    ('background-color', '#0f3460'),
+                    ('border-color', '#2a2a4a'),
+                ]
+            },
+            {
+                'selector': 'tbody tr:hover td',
+                'props': [
+                    ('background-color', '#16213e'),
+                ]
+            },
+            {
+                'selector': 'td',
+                'props': [
+                    ('padding', '6px 10px'),
+                    ('border-color', '#2a2a4a'),
+                ]
+            },
+        ])
+
+        st.dataframe(
+            styled_df,
+            use_container_width=True,
+            hide_index=True
+        )
+
+    tab1, tab2, tab3 , tab4= st.tabs(["Dataset", "Model results","Visualisation","Description"], key="my_tabs", on_change="rerun")
 
     with tab1:
-    
+        
         
 
         if dataset_select is not None:
@@ -370,18 +451,34 @@ def show_main_platform():
         if st.session_state.data is not None:
             selected_features = st.multiselect(
                 "Select your features",
-                options=list(st.session_state.data.columns),
+                options=list(st.session_state.data.columns[:-1]),
             )
-            selected_target = st.multiselect(
-                "Select your target",
-                options=list(st.session_state.data.columns)
-            )
+            selected_target = ['target'] if 'target' in st.session_state.data.columns else []
         else:
             selected_features = []
             selected_target = []
 
+        flag = not (
+            selected_features is not None and
+            model_select is not None and
+            len(selected_features) > 0 and
+            len(model_select) > 0
+        )
+
+        left_space, center_button, right_space = st.columns([3, 2, 3])
+
+        with center_button:
+            submit = st.button(
+                label="Submit",
+                on_click=switch_to_tab,
+                args=("Model results",),
+                disabled=flag,
+                use_container_width=True
+            )
+
     with tab2:
         if selected_features and selected_target:
+           
             if(model_select=='Logistic Regression'):
                 classification_report,  y_pred_prob, y_test, y, y_pred= logistic_regression(st.session_state.data, selected_features, selected_target)
                 st.session_state.y_test = y_test 
@@ -391,7 +488,7 @@ def show_main_platform():
                 classification_dataframe = pd.DataFrame(classification_report)
                 accuracy = classification_dataframe["accuracy"].unique()[0]
                 classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-                st.dataframe(classification_dataframe)
+                themed_dataframe(classification_dataframe)
                 st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
             if(model_select=='Random Forest'):
@@ -403,7 +500,7 @@ def show_main_platform():
                 classification_dataframe = pd.DataFrame(classification_report)
                 accuracy = classification_dataframe["accuracy"].unique()[0]
                 classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-                st.dataframe(classification_dataframe)
+                themed_dataframe(classification_dataframe)
                 st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
             if(model_select=='Support Vector Machine'):
@@ -415,7 +512,7 @@ def show_main_platform():
                 classification_dataframe = pd.DataFrame(classification_report)
                 accuracy = classification_dataframe["accuracy"].unique()[0]
                 classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-                st.dataframe(classification_dataframe)
+                themed_dataframe(classification_dataframe)
                 st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
             if(model_select=='Naive Bayes'):
@@ -427,7 +524,7 @@ def show_main_platform():
                 classification_dataframe = pd.DataFrame(classification_report)
                 accuracy = classification_dataframe["accuracy"].unique()[0]
                 classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-                st.dataframe(classification_dataframe)
+                themed_dataframe(classification_dataframe)
                 st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
             
             if(model_select=='K-Nearest Neighbors'):
@@ -439,7 +536,7 @@ def show_main_platform():
                 classification_dataframe = pd.DataFrame(classification_report)
                 accuracy = classification_dataframe["accuracy"].unique()[0]
                 classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-                st.dataframe(classification_dataframe)
+                themed_dataframe(classification_dataframe)
                 st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
             if(model_select=='Decision Tree'):
@@ -451,134 +548,142 @@ def show_main_platform():
                 classification_dataframe = pd.DataFrame(classification_report)
                 accuracy = classification_dataframe["accuracy"].unique()[0]
                 classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
-                st.dataframe(classification_dataframe)
+                themed_dataframe(classification_dataframe)
                 st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
             if(model_select=='Linear Regression'):
                 metrics, pca_data= linear_regression(st.session_state.data, selected_features, selected_target)
                 st.session_state.pca_data = pca_data
-                st.dataframe(metrics)
+                themed_dataframe(metrics)
 
 
             if(model_select=='Decision Tree Regression'):
                 metrics, pca_data= dec_tree_reg(st.session_state.data, selected_features, selected_target)
                 st.session_state.pca_data = pca_data
-                st.dataframe(metrics)
+                themed_dataframe(metrics)
 
 
             if(model_select=='Random Forest Regression'):
                 metrics, pca_data= ran_for_reg(st.session_state.data, selected_features, selected_target)
                 st.session_state.pca_data = pca_data
-                st.dataframe(metrics)
+                themed_dataframe(metrics)
 
 
             if(model_select=='Ridge Regression'):
                 metrics, pca_data= ridge_reg(st.session_state.data, selected_features, selected_target)
                 st.session_state.pca_data = pca_data
-                st.dataframe(metrics)
+                themed_dataframe(metrics)
 
 
             if(model_select=='Lasso Regression'):
                 metrics, pca_data= lasso_reg(st.session_state.data, selected_features, selected_target)
                 st.session_state.pca_data = pca_data
-                st.dataframe(metrics)
+                themed_dataframe(metrics)
 
 
             if(model_select=='Support Vector Regression'):
                 metrics, pca_data= svr(st.session_state.data, selected_features, selected_target)
                 st.session_state.pca_data = pca_data
-                st.dataframe(metrics)
+                themed_dataframe(metrics)
                 
             
     with tab3:
         if(select_method=='Classification'):
-            col1, col2 = st.columns((2,2))
-            with col1:
-                with st.container(border=True, width="content", height="content"):
-                    classes=np.unique(st.session_state.y)
-                    y_test_binarized =label_binarize(st.session_state.y_test, classes=classes)
-                    n_classes = len(classes)
-                    cmap = plt.cm.get_cmap('tab10', n_classes)
-                    fig,ax=plt.subplots(figsize=(6,5), facecolor='#080810')
-                    ax.set_facecolor('#080810')
-                    for class_index in range(len(np.unique(st.session_state.y))):
-                        y_pred_class=st.session_state.y_pred_prob[:, class_index]
-                        y_test_class=y_test_binarized[:,class_index]
-                        fpr,tpr,thresholds=roc_curve(y_true=y_test_class, y_score=y_pred_class)
-                        auc_score=roc_auc_score(y_true=y_test_class,y_score=y_pred_class)
-                        ax.plot(fpr,tpr, label=f"AUC={auc_score:.2f}",color=cmap(class_index), linewidth=2.5)
-                    ax.plot([0,1],[0,1], "--", color="#4a6a8a", label="random", linewidth=1.5)
-                    ax.set_xlabel("False Positive Rate", fontsize=11, color='#b4d4f0', fontweight='bold')
-                    ax.set_ylabel("True Positive Rate", fontsize=11, color='#b4d4f0', fontweight='bold')
-                    ax.set_title("ROC Curve", fontsize=13, color='#b4d4f0', fontweight='bold')
-                    ax.tick_params(labelsize=10, colors='#b4d4f0')
+            if (
+                "y_test" in st.session_state and
+                st.session_state.y_test is not None
+                ):
+                    col1, col2 = st.columns((2,2))
+                    with col1:
+                        with st.container(border=True, width="content", height="content"):
+                            classes=np.unique(st.session_state.y)
+                    
+                            y_test_binarized = label_binarize(
+                                st.session_state.y_test,
+                                classes=classes
+                            )
+                            n_classes = len(classes)
+                            cmap = plt.cm.get_cmap('tab10', n_classes)
+                            fig,ax=plt.subplots(figsize=(6,5), facecolor='#080810')
+                            ax.set_facecolor('#080810')
+                            for class_index in range(len(np.unique(st.session_state.y))):
+                                y_pred_class = st.session_state.y_pred_prob[:, class_index]
+                                y_test_class=y_test_binarized[:,class_index]
+                                fpr,tpr,thresholds=roc_curve(y_true=y_test_class, y_score=y_pred_class)
+                                auc_score=roc_auc_score(y_true=y_test_class,y_score=y_pred_class)
+                                ax.plot(fpr,tpr, label=f"AUC={auc_score:.2f}",color=cmap(class_index), linewidth=2.5)
+                                ax.plot([0,1],[0,1], "--", color="#4a6a8a", label="random", linewidth=1.5)
+                                ax.set_xlabel("False Positive Rate", fontsize=11, color='#b4d4f0', fontweight='bold')
+                                ax.set_ylabel("True Positive Rate", fontsize=11, color='#b4d4f0', fontweight='bold')
+                                ax.set_title("ROC Curve", fontsize=13, color='#b4d4f0', fontweight='bold')
+                                ax.tick_params(labelsize=10, colors='#b4d4f0')
 
-                    ax.xaxis.label.set_color('#b4d4f0')
-                    ax.yaxis.label.set_color('#b4d4f0')
-                    ax.title.set_color('#b4d4f0')
+                                ax.xaxis.label.set_color('#b4d4f0')
+                                ax.yaxis.label.set_color('#b4d4f0')
+                                ax.title.set_color('#b4d4f0')
 
-                    for spine in ax.spines.values():
-                        spine.set_edgecolor('#1a3550')
-                        spine.set_linewidth(1.2)
+                                for spine in ax.spines.values():
+                                    spine.set_edgecolor('#1a3550')
+                                    spine.set_linewidth(1.2)
 
-                    ax.grid(color='#1a3550', linestyle='--', linewidth=0.7, alpha=0.6)
-                    ax.legend(fontsize=10, facecolor='#0d1520', edgecolor='#47aaff', labelcolor='#b4d4f0', loc='lower right', framealpha=0.95)
-                    plt.tight_layout()
-                    st.pyplot(fig, use_container_width=False)
+                                ax.grid(color='#1a3550', linestyle='--', linewidth=0.7, alpha=0.6)
+                                ax.legend(fontsize=10, facecolor='#0d1520', edgecolor='#47aaff', labelcolor='#b4d4f0', loc='lower right', framealpha=0.95)
+                                plt.tight_layout()
+                            st.pyplot(fig, use_container_width=False)
 
-            with col2:
-                with st.container(border=True, width="content", height="content"):
-                    mpl.rcParams.update({
-                        'font.size': 10,
-                        'axes.titlesize': 12,
-                        'axes.labelsize': 11,
-                        'xtick.labelsize': 10,
-                        'ytick.labelsize': 10,
-                        'legend.fontsize': 10,
-                    })
+                    with col2:
+                        with st.container(border=True, width="content", height="content"):
+                            mpl.rcParams.update({
+                                'font.size': 10,
+                                'axes.titlesize': 12,
+                                'axes.labelsize': 11,
+                                'xtick.labelsize': 10,
+                                'ytick.labelsize': 10,
+                                'legend.fontsize': 10,
+                            })
 
-                    y_test_class_cm = st.session_state.y_test.iloc[:,0].to_numpy().ravel()
-                    y_pred_class_cm = st.session_state.y_pred
-                    print(y_test_class_cm)
-                    print(y_pred_class_cm)
+                            y_test_class_cm = np.array(st.session_state.y_test).ravel()
+                            y_pred_class_cm = st.session_state.y_pred
+                            print(y_test_class_cm)
+                            print(y_pred_class_cm)
 
-                    cm = confusion_matrix(y_test_class_cm,y_pred_class_cm)
-                    class_names = sorted(set(y_test_class_cm) | set(y_pred_class_cm))
-                    fig, ax = plt.subplots(figsize=(7, 6), facecolor='#080810')
-                    ax.set_facecolor('#080810')
-                    im = ax.imshow(cm, interpolation='nearest', cmap='Blues', aspect='auto')
-                    cbar = fig.colorbar(im, ax=ax)
-                    cbar.ax.yaxis.set_tick_params(color='#b4d4f0', labelsize=10)
-                    plt.setp(cbar.ax.yaxis.get_ticklabels(), color='#b4d4f0')
-                    cbar.outline.set_edgecolor('#1a3550')
-                    cbar.outline.set_linewidth(1.2)
-                    cbar.set_label('Count', color='#b4d4f0', fontsize=11, fontweight='bold')
+                            cm = confusion_matrix(y_test_class_cm,y_pred_class_cm)
+                            class_names = sorted(set(y_test_class_cm) | set(y_pred_class_cm))
+                            fig, ax = plt.subplots(figsize=(7, 6), facecolor='#080810')
+                            ax.set_facecolor('#080810')
+                            im = ax.imshow(cm, interpolation='nearest', cmap='Blues', aspect='auto')
+                            cbar = fig.colorbar(im, ax=ax)
+                            cbar.ax.yaxis.set_tick_params(color='#b4d4f0', labelsize=10)
+                            plt.setp(cbar.ax.yaxis.get_ticklabels(), color='#b4d4f0')
+                            cbar.outline.set_edgecolor('#1a3550')
+                            cbar.outline.set_linewidth(1.2)
+                            cbar.set_label('Count', color='#b4d4f0', fontsize=11, fontweight='bold')
 
-                    thresh = cm.max() / 2
-                    for i in range(cm.shape[0]):
-                        for j in range(cm.shape[1]):
-                            ax.text(j, i, format(cm[i, j], 'd'),
-                                    ha='center', va='center', fontsize=14, fontweight='bold',
-                                    color='white' if cm[i, j] > thresh else '#1a1a2e')
+                            thresh = cm.max() / 2
+                            for i in range(cm.shape[0]):
+                                for j in range(cm.shape[1]):
+                                    ax.text(j, i, format(cm[i, j], 'd'),
+                                            ha='center', va='center', fontsize=14, fontweight='bold',
+                                            color='white' if cm[i, j] > thresh else '#1a1a2e')
 
-                    ax.set_xticks(range(len(class_names)))
-                    ax.set_yticks(range(len(class_names)))
-                    ax.set_xticklabels(class_names, color='#b4d4f0', fontsize=11, fontweight='bold')
-                    ax.set_yticklabels(class_names, color='#b4d4f0', fontsize=11, fontweight='bold')
+                            ax.set_xticks(range(len(class_names)))
+                            ax.set_yticks(range(len(class_names)))
+                            ax.set_xticklabels(class_names, color='#b4d4f0', fontsize=11, fontweight='bold')
+                            ax.set_yticklabels(class_names, color='#b4d4f0', fontsize=11, fontweight='bold')
 
-                    ax.set_xlabel('Predicted Labels', color='#b4d4f0', fontsize=12, fontweight='bold')
-                    ax.set_ylabel('True Labels', color='#b4d4f0', fontsize=12, fontweight='bold')
-                    ax.set_title('Confusion Matrix', color='#b4d4f0', fontsize=14, fontweight='bold', pad=15)
+                            ax.set_xlabel('Predicted Labels', color='#b4d4f0', fontsize=12, fontweight='bold')
+                            ax.set_ylabel('True Labels', color='#b4d4f0', fontsize=12, fontweight='bold')
+                            ax.set_title('Confusion Matrix', color='#b4d4f0', fontsize=14, fontweight='bold', pad=15)
 
-                    for spine in ax.spines.values():
-                        spine.set_edgecolor('#1a3550')
-                        spine.set_linewidth(1.2)
+                            for spine in ax.spines.values():
+                                spine.set_edgecolor('#1a3550')
+                                spine.set_linewidth(1.2)
 
-                    ax.tick_params(colors='#b4d4f0', labelsize=11)
+                            ax.tick_params(colors='#b4d4f0', labelsize=11)
 
-                    plt.tight_layout()
-                    st.pyplot(fig)
-                    mpl.rcParams.update(mpl.rcParamsDefault)
+                            plt.tight_layout()
+                            st.pyplot(fig)
+                            mpl.rcParams.update(mpl.rcParamsDefault)
 
         if(select_method=="Regression"):
             col1, col2 = st.columns((2, 2))

@@ -24,9 +24,12 @@ def linear_regression(df: pd.DataFrame, features: List[str], target: List[str]):
     X_train_scaled = scaler.fit_transform(X_train)
     X_test_scaled = scaler.transform(X_test)
 
-    pca = PCA(n_components=2)
-    X_train_pca = pca.fit_transform(X_train_scaled)
-    X_test_pca = pca.transform(X_test_scaled)
+    if len(features) > 1:
+        pca = PCA(n_components=2)
+        X_train_pca = pca.fit_transform(X_train_scaled)
+        X_test_pca = pca.transform(X_test_scaled)
+    else:
+        X_test_pca = X_test_scaled.reshape(-1, 1) if X_test_scaled.ndim == 1 else X_test_scaled
 
     model = LinearRegression()
     model.fit(X_train_scaled, y_train)
