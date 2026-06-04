@@ -111,9 +111,27 @@ def welcome_page():
 
 def show_main_platform():
     st.set_page_config(initial_sidebar_state="expanded")
-    st.markdown("""
+    st.markdown(""" 
     <style>
         #MainMenu, footer, header { visibility: hidden; }
+    </style>
+    """, unsafe_allow_html=True)
+
+    hide_avatar_css = """
+        <style>
+        [data-testid="stStatusWidget"] {
+            visibility: hidden;
+            display: none;
+        }
+        .stAppDeployButton {
+            display: none !important;
+        }
+        </style>
+    """
+    st.markdown(hide_avatar_css, unsafe_allow_html=True)
+    
+    st.markdown("""
+    <style>     
         [data-testid="stSidebarCollapsedControl"] { display: none !important; }
         [data-testid="stSidebarCollapseButton"] { display: none !important; }
                 
