@@ -1,4 +1,4 @@
-import streamlit as st 
+import streamlit as st
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -18,6 +18,7 @@ from ml_models.ran_for_reg import ran_for_reg
 from ml_models.ridge_reg import ridge_reg
 from ml_models.lasso_reg import lasso_reg
 from ml_models.svr import svr
+from ml_models.data_cleaning import clean_dataset
 import streamlit.components.v1 as components
 from sklearn.metrics import roc_curve, roc_auc_score, confusion_matrix
 from sklearn.preprocessing import label_binarize
@@ -115,6 +116,17 @@ def show_main_platform():
         #MainMenu, footer, header { visibility: hidden; }
         [data-testid="stSidebarCollapsedControl"] { display: none !important; }
         [data-testid="stSidebarCollapseButton"] { display: none !important; }
+                
+        [data-testid="stMainMenuPopover"] { display: none !important; }
+        div[class*="viewerBadge"] { display: none !important; }
+        #MainMenu { visibility: hidden !important; }
+        .stDeployButton { display: none !important; }
+        [data-testid="manage-app-button"] { display: none !important; }
+                
+        [data-testid="appCreatorAvatar"] { display: none !important; }
+        [class*="_viewerBadge"] { display: none !important; }
+        [class*="_profileContainer"] { display: none !important; }
+        [class*="_container_gzau"] { display: none !important; }
                 
         .stApp {background: #080810; color: #b4d4f0; }
         .stSidebar { background: #0a0e18; }
@@ -393,6 +405,7 @@ def show_main_platform():
                 df = pd.DataFrame(data=concrete.data.features)
                 df['target'] = concrete.data.targets
 
+            df = clean_dataset(df)
             st.session_state.data = df
             st.session_state.loading_dataset = False
             st.rerun()

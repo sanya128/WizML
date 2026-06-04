@@ -11,9 +11,10 @@ from sklearn.metrics import (
 from typing import List
 import pandas as pd
 import numpy as np
+from .data_cleaning import clean_dataset
 
 def dec_tree_reg(df: pd.DataFrame, features: List[str], target: List[str]):
-
+    df = clean_dataset(df)
     X = df[features]
     y = df[target]
     X_train, X_test, y_train, y_test = train_test_split(

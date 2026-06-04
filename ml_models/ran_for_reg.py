@@ -11,9 +11,10 @@ from sklearn.metrics import (
 from typing import List
 import pandas as pd
 import numpy as np
+from .data_cleaning import clean_dataset
 
 def ran_for_reg(df: pd.DataFrame, features: List[str], target: List[str]):
-
+    df = clean_dataset(df)
     X = df[features]
     y = df[target]
     X_train, X_test, y_train, y_test = train_test_split(
@@ -26,13 +27,13 @@ def ran_for_reg(df: pd.DataFrame, features: List[str], target: List[str]):
         X_test_pca = pca.transform(X_test)
     else:
         X_train_pca = X_train.values if hasattr(X_train, 'values') else X_train
-       
+
         X_train_pca = X_train_pca.reshape(-1, 1) if X_train_pca.ndim == 1 else X_train_pca
-      
+
         X_test_pca = X_test.values if hasattr(X_test, 'values') else X_test
-        
+
         X_test_pca = X_test_pca.reshape(-1, 1) if X_test_pca.ndim == 1 else X_test_pca
-        
+
 
     model= RandomForestRegressor(n_estimators=100, random_state=42)
     model.fit(X_train, y_train)

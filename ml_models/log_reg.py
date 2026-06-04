@@ -5,7 +5,8 @@ from sklearn.metrics import accuracy_score, classification_report
 import matplotlib.pyplot as plt
 from typing import List, Any
 import pandas as pd
-import numpy as np 
+import numpy as np
+from .data_cleaning import clean_dataset 
 
 # class LogRegression:
 #     def __init__(self, df: pd.DataFrame,  features: List[str], target: List[str]):
@@ -32,6 +33,7 @@ def logistic_regression(df: pd.DataFrame, features: List[str], target: List[str]
     Running Logistic Regression on df
     @param df: pd.DataFrame object
     '''
+    df = clean_dataset(df)
     X = df[features]
     y = df[target]
     X_train, X_test, y_train, y_test = train_test_split(
