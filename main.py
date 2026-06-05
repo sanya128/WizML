@@ -129,7 +129,7 @@ def show_main_platform():
         </style>
     """
     st.markdown(hide_avatar_css, unsafe_allow_html=True)
-    
+
     st.markdown("""
     <style>     
         [data-testid="stSidebarCollapsedControl"] { display: none !important; }
@@ -737,9 +737,9 @@ def show_main_platform():
 
                         
                         corr = np.corrcoef(X_test_pca[:, 0], y_test)[0, 1]
-                        ax.set_xlabel('PC1', color='#b4d4f0')
+                        ax.set_xlabel('Compressed features', color='#b4d4f0')
                         ax.set_ylabel('Target', color='#b4d4f0')
-                        ax.set_title(f'PC1 vs Target  (r = {corr:.2f})', color='#b4d4f0', fontsize=12)
+                        ax.set_title(f'Line of Best Fit', color='#b4d4f0', fontsize=12)
 
                         ax.tick_params(colors='#b4d4f0', labelsize=9)
                         ax.xaxis.label.set_color('#b4d4f0')
@@ -830,10 +830,14 @@ def show_main_platform():
             
         if(model_select=="Decision Tree"):
             st.subheader(':blue[Decision Tree Classifier]')
-            st.markdown("Decision Tree Algorithms are widely used supervised machine learning methods for both classification and regression tasks.  \
-                        They split data based on feature values to create a tree-like structure of decisions, starting from a root node and \
-                        ending at leaf nodes that provide predictions.\n\n :blue[Decision Tree Classifier] is a supervised machine learning algorithm that categorizes data by recursively splitting it based on feature-driven decision rules. \
+            st.markdown("Decision Tree Classifier is a supervised machine learning algorithm that categorizes data by recursively splitting it based on feature-driven decision rules. \
                         Each internal node represents a condition on a feature, branches denote the outcomes of those conditions and leaf nodes assign the final class label.")
+            st.markdown("##### :blue[Gini Index]")
+            st.markdown("Gini Index is used to evaluate the quality of a split by measuring the difference between the impurity of \
+                        the parent node and the weighted impurity of the child nodes.")
+            st.markdown("$$ Gini = 1 - \sum_{i=1}^{n} p_i^2 $$", text_alignment="center")
+            st.markdown("A lower Gini Index indicates a more homogeneous or \
+                        pure distribution while a higher Gini Index indicates a more impure distribution. So an attribute with a lower Gini index should be preferred.")
 
         if(model_select=='Logistic Regression'):
             st.subheader(':blue[Logistic Regression]')
@@ -858,17 +862,111 @@ def show_main_platform():
                         is used to predict continuous values such as prices or scores using a tree-like structure. \
                         It splits the data into smaller groups based on simple rules derived from input features, helping reduce prediction errors. \
                         At the end of each branch, called a leaf node, the model outputs a value, i.e., usually the average of that group.")
+            st.markdown("##### :blue[Gini Index]")
+            st.markdown("Gini Index is used to evaluate the quality of a split by measuring the difference between the impurity of \
+                        the parent node and the weighted impurity of the child nodes.")
+            st.markdown("$$ Gini = 1 - \sum_{i=1}^{n} p_i^2 $$", text_alignment="center")
+            st.markdown("A lower Gini Index indicates a more homogeneous or \
+                        pure distribution while a higher Gini Index indicates a more impure distribution. So an attribute with a lower Gini index should be preferred.")
+
+
 
         if(model_select=='Support Vector Regression'):
             st.subheader(":blue[Support Vector Regressor]")
             st.markdown('''
-                        Support Vector Regression predicts continuous values by fitting a function within a defined error margin. It uses kernel functions to handle both linear relationships and complex non-linear patterns in data.
+                        Support Vector Machine (SVM) is a supervised machine learning algorithm used for classification and regression tasks.
+                        It tries to find the best boundary known as a hyperplane that separates different classes in the data. The main goal of \
+                        SVM is to maximize the margin between the two classes.
 
-                        - Works well with high-dimensional data
-                        - Uses linear and kernel-based transformations
-                        - Controls model flexibility using regularization parameters
-                        - Effective for real-world datasets with limited samples
+                        The larger the margin the better the model performs on new and unseen data.
+
+                        Support vectors are the points that lie on or inside \
+                        the margin and determine the position of the decision boundary.
+
+                        Only support vectors influence the final solution. Other points have zero \
+                        contribution to the optimization.
                         ''')
+
+            # ── Theme colors ──────────────────────────────────────────────────────────────
+            BG       = "#080810"
+            SIDEBAR  = "#0a0e18"
+            TEXT     = "#b4d4f0"
+            ACCENT   = "#47aaff"
+            
+            # ── Data ──────────────────────────────────────────────────────────────────────
+            np.random.seed(42)
+            X = np.linspace(1, 9, 18)
+            y = 2 * np.sin(X) + 0.3 * X + np.random.normal(0, 0.3, len(X))
+            
+            # SVR fit (manual sine approximation for illustration)
+            X_line = np.linspace(0.5, 9.5, 300)
+            y_fit  = 2 * np.sin(X_line) + 0.3 * X_line
+            eps    = 0.45         # epsilon tube half-width
+            
+            # ── Plot ──────────────────────────────────────────────────────────────────────
+            fig, ax = plt.subplots(figsize=(9, 5))
+            fig.patch.set_facecolor(BG)
+            ax.set_facecolor(SIDEBAR)
+            
+            # Epsilon tube
+            ax.fill_between(X_line, y_fit - eps, y_fit + eps,
+                            color=ACCENT, alpha=0.15, label=f'ε-tube (ε={eps})')
+            
+            # Upper / lower tube boundaries
+            ax.plot(X_line, y_fit + eps, '--', color=ACCENT, lw=1.4, alpha=0.7, label='ε boundary')
+            ax.plot(X_line, y_fit - eps, '--', color=ACCENT, lw=1.4, alpha=0.7)
+            
+            # SVR regression line
+            ax.plot(X_line, y_fit, color='#ff6b6b', lw=2.2, label='SVR fit (f(x))')
+            
+            # Classify points: inside tube vs support vectors (outside)
+            inside = np.abs(y - (2 * np.sin(X) + 0.3 * X)) <= eps
+            outside = ~inside
+            
+            # Inside-tube points
+            ax.scatter(X[inside], y[inside], color=TEXT, s=45, zorder=5, label='Inside ε-tube')
+            
+            # Support vectors (outside tube) — highlighted
+            ax.scatter(X[outside], y[outside], color='#ffcc44', s=70, zorder=6,
+                    edgecolors='white', linewidths=0.8, label='Support Vectors')
+            
+            # Slack lines from support vectors to tube boundary
+            for xi, yi in zip(X[outside], y[outside]):
+                y_tube = 2 * np.sin(xi) + 0.3 * xi
+                boundary = y_tube + eps if yi > y_tube else y_tube - eps
+                ax.plot([xi, xi], [yi, boundary], color='#ffcc44', lw=1, ls=':', zorder=4)
+            
+            # Annotations
+            ax.annotate('SVR fit f(x)', xy=(8.2, y_fit[-20]), xytext=(7, y_fit[-20] + 1.1),
+                        color='#ff6b6b', fontsize=9,
+                        arrowprops=dict(arrowstyle='->', color='#ff6b6b', lw=1))
+            
+            ax.annotate('ε-insensitive\ntube', xy=(5, y_fit[150] + eps * 0.5),
+                        xytext=(3.2, y_fit[150] + 1.5), color=ACCENT, fontsize=8.5,
+                        arrowprops=dict(arrowstyle='->', color=ACCENT, lw=1))
+            
+            ax.annotate('Support Vector\n(slack ξ > 0)', xy=(X[outside][0], y[outside][0]),
+                        xytext=(X[outside][0] - 2.2, y[outside][0] - 1.2),
+                        color='#ffcc44', fontsize=8.5,
+                        arrowprops=dict(arrowstyle='->', color='#ffcc44', lw=1))
+            
+            # ── Styling ───────────────────────────────────────────────────────────────────
+            ax.set_title('Support Vector Regression (SVR)', color=TEXT, fontsize=13, pad=12)
+            ax.set_xlabel('X', color=TEXT, fontsize=11)
+            ax.set_ylabel('y', color=TEXT, fontsize=11)
+            ax.tick_params(colors=TEXT)
+            for spine in ax.spines.values():
+                spine.set_edgecolor(ACCENT)
+                spine.set_alpha(0.4)
+            
+            legend = ax.legend(facecolor=SIDEBAR, edgecolor=ACCENT, labelcolor=TEXT,
+                            fontsize=8.5, loc='upper left')
+            
+            plt.tight_layout()
+            
+            st.pyplot(fig)
+ 
+
 
         if(model_select=='Random Forest Regression'):
             st.subheader(":blue[Random Forest Regressor]")
@@ -876,6 +974,9 @@ def show_main_platform():
                         Multiple decision trees are trained on different random subsets of the dataset with replacement to train each tree. \
                         Each tree uses a random subset of features while splitting nodes. \
                         The final prediction is obtained by averaging the predictions from all decision trees.")  
+            col1, col2, col3 = st.columns([1, 7, 1])
+            with col2:
+                st.image("randomforest.png", width=600)
 
         if(model_select=='Random Forest'):
             st.subheader(":blue[Random Forest Classifier]")
@@ -883,7 +984,10 @@ def show_main_platform():
                         It uses Bootstrap Sampling technique where Random rows are picked to train each tree. rees split the data using the best feature from their \
                         random set. Splitting continues until a stopping rule is met (like max depth) \
                         The final prediction is the one most tree agree on.")
-            
+            col1, col2, col3 = st.columns([1, 7, 1])
+            with col2:
+                st.image("ranforclass.png", width=600)
+
         if(model_select=='Support Vector Machine'):
             st.subheader(":blue[Support Vector Machine]")
             st.markdown("Support Vector Machine (SVM) is a supervised machine learning algorithm used for classification and regression tasks.\
@@ -892,16 +996,124 @@ def show_main_platform():
                         The main goal of SVM is to maximize the margin between the two classes.\
                          The larger the margin the better the model performs on new and unseen data.")
 
+            BG     = "#080810"
+            SIDEBAR= "#0a0e18"
+            TEXT   = "#b4d4f0"
+            ACCENT = "#47aaff"
+            
+            # ── Data: two clusters ─────────────────────────────────────────────────────────
+            np.random.seed(7)
+            # Negative class (bottom-left)
+            neg_x = np.random.normal(2.5, 0.6, 12)
+            neg_y = np.random.normal(2.5, 0.6, 12)
+            # Positive class (top-right)
+            pos_x = np.random.normal(7.0, 0.7, 12)
+            pos_y = np.random.normal(6.5, 0.7, 12)
+            
+            # ── Decision boundary: x2 = -x1 + 9  →  slope=-1, intercept=9 ────────────────
+            x_line = np.linspace(0.5, 9.5, 300)
+            y_db   = -x_line + 9        # decision boundary
+            margin = 1.3
+            y_pos  = y_db + margin      # +ve hyperplane
+            y_neg  = y_db - margin      # -ve hyperplane
+            
+            # ── Plot ───────────────────────────────────────────────────────────────────────
+            fig, ax = plt.subplots(figsize=(4, 3))
+            fig.patch.set_facecolor(BG)
+            ax.set_facecolor(SIDEBAR)
+            
+            # Margin shading
+            ax.fill_between(x_line, y_neg, y_pos, color=ACCENT, alpha=0.08)
+            
+            # Decision boundary (solid red)
+            ax.plot(x_line, y_db, color='#ff4d4d', lw=2.2)
+            
+            # +ve hyperplane (green dashed)
+            ax.plot(x_line, y_pos, '--', color='#44dd88', lw=1.8)
+            
+            # -ve hyperplane (red dashed)
+            ax.plot(x_line, y_neg, '--', color='#ff4d4d', lw=1.8)
+            
+            ax.scatter(neg_x, neg_y, marker='x', color='#ff4d4d', s=60, lw=1.5, zorder=5)
+            ax.scatter(pos_x, pos_y, marker='x', color='#44dd88', s=60, lw=1.5, zorder=5)
+
+            
+            # ── Support vectors (points closest to boundary) ──────────────────────────────
+            sv_neg = [(2.8, 4.5), (2.3, 4.9)]   # near -ve hyperplane
+            sv_pos = [(6.0, 4.8), (5.5, 5.5)]   # near +ve hyperplane
+            
+            for sx, sy in sv_neg:
+                ax.scatter(sx, sy, marker='x', color='#ff4d4d', s=80, lw=2, zorder=6)
+                ax.add_patch(plt.Circle((sx, sy), 0.18, color='#ff4d4d', fill=False, lw=0.8, zorder=7))
+            for sx, sy in sv_pos:
+                ax.scatter(sx, sy, marker='x', color='#44dd88', s=80, lw=2, zorder=6)
+                ax.add_patch(plt.Circle((sx, sy), 0.18, color='#44dd88', fill=False, lw=0.8, zorder=7))
+            # ── Margin arrow ──────────────────────────────────────────────────────────────
+            # Draw double-headed arrow between the two hyperplanes at x=3
+            xm = 3.2
+            ym1 = -xm + 9 - margin
+            ym2 = -xm + 9 + margin
+            ax.annotate('', xy=(xm - 0.5, ym2 + 0.5), xytext=(xm + 0.5, ym1 - 0.5),
+                        arrowprops=dict(arrowstyle='<->', color=TEXT, lw=1.4))
+            ax.text(xm-1.8, (ym1+ym2)/2+0.6, 'Maximize\nthe Margin', color=TEXT, fontsize=6, ha='center')
+            
+            ax.text(8.0, -8.0+9+margin+0.15, '"+ ve Hyperplane"', color='#44dd88', fontsize=5.5, ha='right')
+            ax.text(8.0, -8.0+9-margin+0.65, '"- ve Hyperplane"', color='#ff4d4d', fontsize=5.5, ha='right')
+
+            
+            # ── Support Vectors label ─────────────────────────────────────────────────────
+            ax.annotate('Support\nVectors', xy=(6.0, 4.8), xytext=(7.8, 3.8), color=TEXT, fontsize=6,
+            arrowprops=dict(arrowstyle='->', color=TEXT, lw=0.7))
+            ax.annotate('', xy=(5.5, 5.5), xytext=(7.6, 4.2), 
+                        arrowprops=dict(arrowstyle='->', color=TEXT, lw=1))
+            ax.annotate('', xy=(2.8, 4.5), xytext=(7.6, 4.2), 
+                        arrowprops=dict(arrowstyle='->', color=TEXT, lw=1))
+            ax.annotate('', xy=(2.3, 4.9), xytext=(7.6, 4.2), 
+                        arrowprops=dict(arrowstyle='->', color=TEXT, lw=1))
+            
+            
+            # ── Legend ────────────────────────────────────────────────────────────────────
+            ax.scatter([], [], marker='x', color='#ff4d4d', s=80, lw=2, label='- ve')
+            ax.scatter([], [], marker='x', color='#44dd88', s=80, lw=2, label='+ ve')
+            ax.legend(facecolor=SIDEBAR, edgecolor=ACCENT, labelcolor=TEXT, fontsize=6, loc='upper right')
+
+            
+            # ── Axes styling ──────────────────────────────────────────────────────────────
+            ax.set_xlim(0, 9.8)
+            ax.set_ylim(0, 9.8)
+            ax.set_xlabel('X₁', color=TEXT, fontsize=8)
+            ax.set_ylabel('X₂', color=TEXT, fontsize=8)
+            ax.tick_params(colors=TEXT, labelsize=6)
+            ax.spines['left'].set_edgecolor(TEXT)
+            ax.spines['bottom'].set_edgecolor(TEXT)
+            ax.spines['top'].set_visible(False)
+            ax.spines['right'].set_visible(False)
+            
+            plt.tight_layout()
+            st.pyplot(fig)
+
+
         if(model_select=='K-Nearest Neighbors'):
             st.subheader(":blue[K-Nearest Neighbors]")
-            st.markdown('''
-                        K‑Nearest Neighbor (KNN) is a simple and widely used machine learning technique for classification and regression tasks. \
+            st.markdown(r'''
+                        K‑Nearest Neighbor (KNN) is a simple and widely used machine learning technique for classification and regression tasks. 
                         It works by identifying the K closest data points to a given input and making predictions based on the majority class or average value of those neighbors.
 
-                        - Classifies data based on similarity with nearby data points
-                        - Uses distance metrics like Euclidean distance to find nearest neighbors
-                        - Since KNN makes no assumptions about the underlying data distribution, \
-                        it makes it a non-parametric and instance-based learning method.
+                        KNN uses distance metrics to identify nearest neighbor, these neighbors are used for classification and regression task. 
+                        
+                        To identify nearest neighbor we use below distance metric:
+
+                        1. Euclidean distance:
+                        
+                        $$ d(x, X_i) = \sqrt{\sum_{j=1}^n (x_j - X_{ij})^2} $$
+
+                        2. Manhattan Distance
+
+                        $$ d(x,y) = \sum_{i=1}^n |x_i - y_i| $$
+
+                        3. Minkowski Distance
+                        
+                        $$ d(x,y) = \left( \sum_{i=1}^n (x_i - y_i)^p \right)^{1/p} $$
                         ''')
 
         if(model_select=='Naive Bayes'):
@@ -910,6 +1122,16 @@ def show_main_platform():
                         It assumes that all features are independent of each other. \
                         Naive Bayes performs well in many real-world applications \
                         such as spam filtering, document categorisation and sentiment analysis.")
+            st.markdown(r"$$ P(y|X) = \frac{P(X|y) \cdot P(y)}{P(X)} $$", text_alignment="center")
+            st.markdown('''
+                        Where:
+
+                        - P(y|X): Posterior probability, probability of class y given features X
+                        - P(X∣y): Likelihood, probability of features X given class y
+                        - P(y): Prior probability of class y
+                        - P(X): Marginal likelihood or evidence
+                        ''')
+            st.image("naivebayes.png", caption="Decision Boundary", width= 600)
 
 if st.session_state.logged_in:
     show_main_platform()
