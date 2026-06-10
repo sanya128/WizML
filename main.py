@@ -4,6 +4,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import seaborn as sns
 import matplotlib as mpl
+import io
 from sklearn.decomposition import PCA
 from ucimlrepo import fetch_ucirepo
 from ml_models.log_reg import logistic_regression
@@ -385,7 +386,7 @@ def show_main_platform():
             hide_index=True
         )
 
-    tab1, tab2, tab3 , tab4= st.tabs(["Dataset", "Model results","Visualisation","Description"], key="my_tabs", on_change="rerun")
+    tab1, tab2, tab3 , tab4, tab5= st.tabs(["Dataset", "EDA", "Model results","Visualisation","Description"], key="my_tabs", on_change="rerun")
 
     with tab1:
         
@@ -508,6 +509,521 @@ def show_main_platform():
             )
 
     with tab2:
+        if st.session_state.data is None:
+            st.warning("Please load a dataset first.")
+        else:
+
+            df = st.session_state.data
+            BG = "#080810"
+            SIDEBAR = "#0a0e18"
+            TEXT = "#b4d4f0"
+            ACCENT = "#47aaff"
+
+            options = [
+                "Overview",
+                "Distribution",
+                "Correlation",
+                "Target Analysis",
+                "Missing Values"
+            ]
+
+            selection = st.segmented_control(
+                "",
+                options,
+                selection_mode="single",
+                default="Overview",
+                label_visibility="collapsed"
+            )
+
+            if selection == "Overview":
+
+                rows = df.shape[0]
+                cols = df.shape[1]
+                missing = df.isnull().sum().sum()
+                duplicates = df.duplicated().sum()
+                mem_usage = round(df.memory_usage(deep=True).sum() / 1024, 2)
+
+                # --- Metrics row ---
+                with st.container(border=True):
+                    m1, m2, m3, m4, m5 = st.columns(5, gap="medium")
+                    with m1:
+                        st.metric("Rows", f"{rows:,}")
+                    with m2:
+                        st.metric("Columns", cols)
+                    with m3:
+                        st.metric("Missing", missing)
+                    with m4:
+                        st.metric("Duplicates", duplicates)
+                    with m5:
+                        st.metric("Memory Usage", f"{mem_usage} KB")
+
+                # --- Pie chart + Summary stats side by side ---
+                left, right = st.columns([5,8], gap="small")
+
+                with left:
+                    with st.container(border=True):
+                        st.markdown("<p style='font-size:14px; color:#b4d4f0; margin-bottom:6px;'>Data Types</p>", unsafe_allow_html=True)
+                        numeric_cols = df.select_dtypes(include=np.number).columns
+                        categorical_cols = df.select_dtypes(exclude=np.number).columns
+
+                        fig, ax = plt.subplots(figsize=(6, 4.6), facecolor=BG)
+                        ax.set_facecolor(SIDEBAR)
+                        ax.pie(
+                            [len(numeric_cols), len(categorical_cols)],
+                            labels=[
+                                f"Numeric\n({len(numeric_cols)})",
+                                f"Categorical\n({len(categorical_cols)})"
+                            ],
+                            autopct="%1.1f%%",
+                            wedgeprops=dict(width=0.4),
+                            colors=['#47aaff', '#ff6b6b'],
+                            textprops={'color': TEXT, 'fontsize': 13, 'weight': 'bold'},
+                            pctdistance=0.75,
+                            labeldistance=1.25
+                        )
+
+                        buf = io.BytesIO()
+                        fig.savefig(buf, format="png", facecolor=BG)
+                        buf.seek(0)
+                        st.image(buf, use_container_width=True)
+                        plt.close(fig)
+
+                with right:
+                    with st.container(border=True):
+                        st.markdown("<p style='font-size:14px; color:#b4d4f0; margin-bottom:6px;'>Summary Statistics</p>", unsafe_allow_html=True)
+                        summary_stats = df.describe().T
+                        st.dataframe(
+                            summary_stats,
+                            use_container_width=True,
+                            height=4 * 35 + 38  # shows exactly 4 rows, rest scrollable
+                        )
+
+                # --- Missing values bar chart ---
+                with st.container(border=True):
+                    st.markdown("<p style='font-size:14px; color:#b4d4f0; margin-bottom:6px;'>Missing Values by Column</p>", unsafe_allow_html=True)
+                    missing_data = df.isnull().sum()
+
+                    fig, ax = plt.subplots(figsize=(12, 4), facecolor=BG)
+                    ax.set_facecolor(SIDEBAR)
+                    missing_data.plot(kind="bar", ax=ax, color=ACCENT)
+                    ax.set_ylabel("Missing Count", color=TEXT, fontweight='bold', fontsize=11)
+                    ax.set_xlabel("Columns", color=TEXT, fontweight='bold', fontsize=11)
+                    ax.tick_params(colors=TEXT, labelsize=10)
+                    for spine in ax.spines.values():
+                        spine.set_edgecolor(ACCENT)
+                        spine.set_alpha(0.3)
+                    plt.xticks(rotation=45, color=TEXT, fontsize=10)
+                    st.pyplot(fig, use_container_width=True)
+
+                # --- Data preview + Feature summary ---
+                col1, col2 = st.columns(2, gap="small")
+
+                with col1:
+                    with st.container(border=True):
+                        st.markdown("<p style='font-size:14px; color:#b4d4f0; margin-bottom:6px;'>Data Preview</p>", unsafe_allow_html=True)
+                        st.dataframe(
+                            df.head(5),
+                            hide_index=True,
+                            use_container_width=True,
+                            height=5 * 35 + 38  # 5 rows visible, rest scrollable
+                        )
+
+                with col2:
+                    with st.container(border=True):
+                        st.markdown("<p style='font-size:14px; color:#b4d4f0; margin-bottom:6px;'>Feature Summary</p>", unsafe_allow_html=True)
+                        feature_summary = pd.DataFrame({
+                            "Feature": df.columns,
+                            "Unique Values": [df[col].nunique() for col in df.columns]
+                        })
+                        st.dataframe(
+                            feature_summary,
+                            use_container_width=True,
+                            height=5 * 35 + 38  # 5 rows visible, rest scrollable
+                        )
+
+            # ==================================================
+            # DISTRIBUTION
+            # ==================================================
+
+            elif selection == "Distribution":
+
+                numeric_cols = list(
+                    df.select_dtypes(
+                        include=np.number
+                    ).columns
+                )
+
+                if len(numeric_cols) == 0:
+
+                    st.info("No numerical columns available.")
+
+                else:
+
+                    selected_col = st.selectbox(
+                        "Select Feature",
+                        numeric_cols
+                    )
+
+                    col1, col2 = st.columns(2)
+
+                    with col1:
+                        st.subheader("Histogram")
+
+                        fig, ax = plt.subplots(
+                            figsize=(6, 4),
+                            facecolor=BG
+                        )
+                        ax.set_facecolor(SIDEBAR)
+
+                        ax.hist(
+                            df[selected_col].dropna(),
+                            bins=20,
+                            color=ACCENT,
+                            edgecolor=TEXT,
+                            alpha=0.8
+                        )
+
+                        ax.set_title(
+                            f"Distribution of {selected_col}",
+                            color=TEXT,
+                            fontweight='bold'
+                        )
+                        ax.set_xlabel("Value", color=TEXT, fontweight='bold')
+                        ax.set_ylabel("Frequency", color=TEXT, fontweight='bold')
+                        ax.tick_params(colors=TEXT)
+                        for spine in ax.spines.values():
+                            spine.set_edgecolor(ACCENT)
+                            spine.set_alpha(0.3)
+
+                        st.pyplot(fig)
+
+                    with col2:
+                        st.subheader("Box Plot")
+
+                        fig, ax = plt.subplots(
+                            figsize=(6, 4),
+                            facecolor=BG
+                        )
+                        ax.set_facecolor(SIDEBAR)
+
+                        box = ax.boxplot(
+                            df[selected_col].dropna(),
+                            patch_artist=True
+                        )
+                        for patch in box['boxes']:
+                            patch.set_facecolor(ACCENT)
+                            patch.set_alpha(0.7)
+                        for whisker in box['whiskers']:
+                            whisker.set_color(TEXT)
+                        for cap in box['caps']:
+                            cap.set_color(TEXT)
+
+                        ax.set_title(
+                            f"Boxplot of {selected_col}",
+                            color=TEXT,
+                            fontweight='bold'
+                        )
+                        ax.set_ylabel("Value", color=TEXT, fontweight='bold')
+                        ax.tick_params(colors=TEXT)
+                        for spine in ax.spines.values():
+                            spine.set_edgecolor(ACCENT)
+                            spine.set_alpha(0.3)
+
+                        st.pyplot(fig)
+
+                    st.subheader("Statistics")
+
+                    st.dataframe(
+                        df[[selected_col]]
+                        .describe()
+                        .T,
+                        use_container_width=True
+                    )
+
+            # ==================================================
+            # CORRELATION
+            # ==================================================
+
+            elif selection == "Correlation":
+
+                numeric_df = df.select_dtypes(
+                    include=np.number
+                )
+
+                if numeric_df.shape[1] < 2:
+
+                    st.info(
+                        "Need at least 2 numerical columns."
+                    )
+
+                else:
+
+                    st.subheader(
+                        "Correlation Matrix"
+                    )
+
+                    corr = numeric_df.corr()
+
+                    fig, ax = plt.subplots(
+                        figsize=(10, 7),
+                        facecolor=BG
+                    )
+                    ax.set_facecolor(SIDEBAR)
+
+                    heatmap = ax.imshow(
+                        corr,
+                        aspect="auto",
+                        cmap='coolwarm'
+                    )
+
+                    ax.set_xticks(
+                        range(len(corr.columns))
+                    )
+
+                    ax.set_yticks(
+                        range(len(corr.columns))
+                    )
+
+                    ax.set_xticklabels(
+                        corr.columns,
+                        rotation=90,
+                        color=TEXT
+                    )
+
+                    ax.set_yticklabels(
+                        corr.columns,
+                        color=TEXT
+                    )
+
+                    cbar = plt.colorbar(
+                        heatmap,
+                        ax=ax
+                    )
+                    cbar.ax.tick_params(colors=TEXT)
+
+                    st.pyplot(fig)
+
+                    st.subheader(
+                        "Correlation Values"
+                    )
+
+                    st.dataframe(
+                        corr,
+                        use_container_width=True
+                    )
+
+            # ==================================================
+            # TARGET ANALYSIS
+            # ==================================================
+
+            elif selection == "Target Analysis":
+
+                if "target" not in df.columns:
+
+                    st.warning(
+                        "No target column found."
+                    )
+
+                else:
+
+                    target = "target"
+
+                    if pd.api.types.is_numeric_dtype(
+                        df[target]
+                    ):
+
+                        st.subheader(
+                            "Target Distribution"
+                        )
+
+                        fig, ax = plt.subplots(
+                            figsize=(7, 4),
+                            facecolor=BG
+                        )
+                        ax.set_facecolor(SIDEBAR)
+
+                        ax.hist(
+                            df[target].dropna(),
+                            bins=20,
+                            color=ACCENT,
+                            edgecolor=TEXT,
+                            alpha=0.8
+                        )
+                        ax.set_title("Distribution", color=TEXT, fontweight='bold')
+                        ax.set_xlabel("Value", color=TEXT, fontweight='bold')
+                        ax.set_ylabel("Frequency", color=TEXT, fontweight='bold')
+                        ax.tick_params(colors=TEXT)
+                        for spine in ax.spines.values():
+                            spine.set_edgecolor(ACCENT)
+                            spine.set_alpha(0.3)
+
+                        st.pyplot(fig)
+
+                        numeric_cols = [
+                            col
+                            for col in df.select_dtypes(
+                                include=np.number
+                            ).columns
+                            if col != target
+                        ]
+
+                        if len(numeric_cols) > 0:
+
+                            feature = st.selectbox(
+                                "Select Feature",
+                                numeric_cols
+                            )
+
+                            st.subheader(
+                                f"{feature} vs Target"
+                            )
+
+                            fig, ax = plt.subplots(
+                                figsize=(7, 4),
+                                facecolor=BG
+                            )
+                            ax.set_facecolor(SIDEBAR)
+
+                            ax.scatter(
+                                df[feature],
+                                df[target],
+                                color=ACCENT,
+                                alpha=0.6,
+                                edgecolors=TEXT,
+                                linewidth=0.5
+                            )
+
+                            ax.set_xlabel(
+                                feature,
+                                color=TEXT,
+                                fontweight='bold'
+                            )
+
+                            ax.set_ylabel(
+                                target,
+                                color=TEXT,
+                                fontweight='bold'
+                            )
+                            ax.tick_params(colors=TEXT)
+                            for spine in ax.spines.values():
+                                spine.set_edgecolor(ACCENT)
+                                spine.set_alpha(0.3)
+
+                            st.pyplot(fig)
+
+                    else:
+
+                        counts = (
+                            df[target]
+                            .value_counts()
+                        )
+
+                        fig, ax = plt.subplots(
+                            figsize=(7, 4),
+                            facecolor=BG
+                        )
+                        ax.set_facecolor(SIDEBAR)
+
+                        counts.plot(
+                            kind="bar",
+                            ax=ax,
+                            color=ACCENT,
+                            edgecolor=TEXT
+                        )
+                        ax.set_title("Target Counts", color=TEXT, fontweight='bold')
+                        ax.set_ylabel("Count", color=TEXT, fontweight='bold')
+                        ax.set_xlabel("Class", color=TEXT, fontweight='bold')
+                        ax.tick_params(colors=TEXT)
+                        plt.xticks(rotation=45, color=TEXT)
+                        for spine in ax.spines.values():
+                            spine.set_edgecolor(ACCENT)
+                            spine.set_alpha(0.3)
+
+                        st.pyplot(fig)
+
+            # ==================================================
+            # MISSING VALUES
+            # ==================================================
+
+            elif selection == "Missing Values":
+
+                st.subheader(
+                    "Missing Values Analysis"
+                )
+
+                missing_data = (
+                    df.isnull()
+                    .sum()
+                    .sort_values(
+                        ascending=False
+                    )
+                )
+
+                col1, col2 = st.columns(2)
+
+                with col1:
+                    st.subheader("Summary")
+                    st.dataframe(
+                        pd.DataFrame({
+                            "Column":
+                                missing_data.index,
+                            "Missing":
+                                missing_data.values
+                        }),
+                        use_container_width=True
+                    )
+
+                with col2:
+                    st.subheader("Percentage")
+                    percent = (
+                        df.isnull().mean() * 100
+                    ).round(2)
+
+                    st.dataframe(
+                        pd.DataFrame({
+                            "Column":
+                                percent.index,
+                            "Missing %":
+                                percent.values
+                        }),
+                        use_container_width=True
+                    )
+
+                fig, ax = plt.subplots(
+                    figsize=(10, 5),
+                    facecolor=BG
+                )
+                ax.set_facecolor(SIDEBAR)
+
+                missing_data.plot(
+                    kind="bar",
+                    ax=ax,
+                    color=ACCENT,
+                    edgecolor=TEXT
+                )
+
+                ax.set_ylabel(
+                    "Missing Count",
+                    color=TEXT,
+                    fontweight='bold'
+                )
+                ax.set_xlabel(
+                    "Columns",
+                    color=TEXT,
+                    fontweight='bold'
+                )
+                ax.tick_params(colors=TEXT)
+                plt.xticks(rotation=45, color=TEXT)
+                for spine in ax.spines.values():
+                    spine.set_edgecolor(ACCENT)
+                    spine.set_alpha(0.3)
+
+                st.pyplot(fig)
+            
+        
+
+
+    with tab3:
         if selected_features and selected_target:
            
             if(model_select=='Logistic Regression'):
@@ -618,7 +1134,7 @@ def show_main_platform():
                 themed_dataframe(metrics)
                 
             
-    with tab3:
+    with tab4:
         if(select_method=='Classification'):
             if (
                 "y_test" in st.session_state and
@@ -789,7 +1305,7 @@ def show_main_platform():
                     else:
                         st.markdown("<span style='color:#2a4a6a; font-family:Courier New;'>Run a regression model to see residual plot.</span>", unsafe_allow_html=True)
 
-    with tab4:
+    with tab5:
         if(model_select=="Linear Regression"):
             st.subheader(':blue[Linear Regression]')
             st.markdown("Linear Regression is a fundamental supervised learning algorithm used to model the relationship between a dependent variable and one or more independent variables. It predicts continuous values by fitting a straight line that best represents the data.")
