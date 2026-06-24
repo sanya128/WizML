@@ -872,7 +872,6 @@ def show_main_platform():
                         "Select Feature",
                         numeric_cols
                     )
-
                     col1, col2 = st.columns(2)
 
                     with col1:
@@ -1550,9 +1549,16 @@ def show_main_platform():
                     st.session_state.y_pred_prob = y_pred_prob
                     st.session_state.y=y
                     st.session_state.y_pred =y_pred
-                    classification_dataframe = pd.DataFrame(classification_report)
-                    accuracy = classification_dataframe["accuracy"].unique()[0]
-                    classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
+                    classification_dataframe = pd.DataFrame(classification_report).transpose()
+                    accuracy = classification_dataframe.loc["accuracy","precision"]
+                    classification_dataframe.drop(index=["accuracy"], inplace=True)
+                    classification_dataframe.rename(columns={
+                        'precision': 'Precision',
+                        'recall': 'Recall',
+                        'f1-score': 'F1-Score',
+                        'support': 'Support'
+                    }, inplace=True)
+                    classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
                     themed_dataframe(classification_dataframe)
                     st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
@@ -1562,9 +1568,16 @@ def show_main_platform():
                     st.session_state.y_pred_prob = y_pred_prob
                     st.session_state.y=y
                     st.session_state.y_pred=y_pred
-                    classification_dataframe = pd.DataFrame(classification_report)
-                    accuracy = classification_dataframe["accuracy"].unique()[0]
-                    classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
+                    classification_dataframe = pd.DataFrame(classification_report).transpose()
+                    accuracy = classification_dataframe.loc["accuracy","precision"]
+                    classification_dataframe.drop(index=["accuracy"], inplace=True)
+                    classification_dataframe.rename(columns={
+                        'precision': 'Precision',
+                        'recall': 'Recall',
+                        'f1-score': 'F1-Score',
+                        'support': 'Support'
+                    }, inplace=True)
+                    classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
                     themed_dataframe(classification_dataframe)
                     st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
@@ -1574,9 +1587,16 @@ def show_main_platform():
                     st.session_state.y_pred_prob = y_pred_prob
                     st.session_state.y=y
                     st.session_state.y_pred=y_pred
-                    classification_dataframe = pd.DataFrame(classification_report)
-                    accuracy = classification_dataframe["accuracy"].unique()[0]
-                    classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
+                    classification_dataframe = pd.DataFrame(classification_report).transpose()
+                    accuracy = classification_dataframe.loc["accuracy","precision"]
+                    classification_dataframe.drop(index=["accuracy"], inplace=True)
+                    classification_dataframe.rename(columns={
+                        'precision': 'Precision',
+                        'recall': 'Recall',
+                        'f1-score': 'F1-Score',
+                        'support': 'Support'
+                    }, inplace=True)
+                    classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
                     themed_dataframe(classification_dataframe)
                     st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
@@ -1586,21 +1606,35 @@ def show_main_platform():
                     st.session_state.y_pred_prob = y_pred_prob
                     st.session_state.y=y
                     st.session_state.y_pred=y_pred
-                    classification_dataframe = pd.DataFrame(classification_report)
-                    accuracy = classification_dataframe["accuracy"].unique()[0]
-                    classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
+                    classification_dataframe = pd.DataFrame(classification_report).transpose()
+                    accuracy = classification_dataframe.loc["accuracy","precision"]
+                    classification_dataframe.drop(index=["accuracy"], inplace=True)
+                    classification_dataframe.rename(columns={
+                        'precision': 'Precision',
+                        'recall': 'Recall',
+                        'f1-score': 'F1-Score',
+                        'support': 'Support'
+                    }, inplace=True)
+                    classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
                     themed_dataframe(classification_dataframe)
                     st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
-                
+
                 if(model_select=='K-Nearest Neighbors'):
                     classification_report,  y_pred_prob, y_test, y, y_pred= k_neighbor(st.session_state.data, selected_features, selected_target)
                     st.session_state.y_test = y_test 
                     st.session_state.y_pred_prob = y_pred_prob
                     st.session_state.y=y
                     st.session_state.y_pred=y_pred
-                    classification_dataframe = pd.DataFrame(classification_report)
-                    accuracy = classification_dataframe["accuracy"].unique()[0]
-                    classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
+                    classification_dataframe = pd.DataFrame(classification_report).transpose()
+                    accuracy = classification_dataframe.loc["accuracy","precision"]
+                    classification_dataframe.drop(index=["accuracy"], inplace=True)
+                    classification_dataframe.rename(columns={
+                        'precision': 'Precision',
+                        'recall': 'Recall',
+                        'f1-score': 'F1-Score',
+                        'support': 'Support'
+                    }, inplace=True)
+                    classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
                     themed_dataframe(classification_dataframe)
                     st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
@@ -1610,9 +1644,16 @@ def show_main_platform():
                     st.session_state.y_pred_prob = y_pred_prob
                     st.session_state.y=y
                     st.session_state.y_pred=y_pred
-                    classification_dataframe = pd.DataFrame(classification_report)
-                    accuracy = classification_dataframe["accuracy"].unique()[0]
-                    classification_dataframe.drop(labels=["accuracy"], axis=1, inplace=True)
+                    classification_dataframe = pd.DataFrame(classification_report).transpose()
+                    accuracy = classification_dataframe.loc["accuracy","precision"]
+                    classification_dataframe.drop(index=["accuracy"], inplace=True)
+                    classification_dataframe.rename(columns={
+                        'precision': 'Precision',
+                        'recall': 'Recall',
+                        'f1-score': 'F1-Score',
+                        'support': 'Support'
+                    }, inplace=True)
+                    classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
                     themed_dataframe(classification_dataframe)
                     st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
