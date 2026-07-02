@@ -552,6 +552,7 @@ def show_main_platform():
             st.session_state.upload_detected  = detected
             st.session_state.last_upload_name = uploaded_file.name
             st.session_state.data             = raw_df
+            st.session_state.eda_selection    = "Overview"
             st.rerun()
     elif st.session_state.uploaded_df is not None:
         # file removed — reset
@@ -665,14 +666,14 @@ def show_main_platform():
             hide_index=True
         )
 
-    tab1, tab2, tab2b, tab3, tab4, tab5 = st.tabs(["Dataset", "EDA", "Data Cleaning", "Model results", "Visualisation", "Description"], key="my_tabs", on_change="rerun")
-    
+    tab1, tab2, tab2b, tab3, tab4, tab5 = st.tabs(["Dataset", "EDA", "Data Cleaning", "Model results", "Visualisation", "Description"], )
     with tab1:
         if dataset_select is not None:
             if st.session_state.get("last_dataset") != dataset_select:
                 st.session_state.loading_dataset = True
                 st.session_state.last_dataset = dataset_select
                 st.session_state.data = None
+                st.session_state.eda_selection   = "Overview"
                 st.rerun()
 
         if st.session_state.get("loading_dataset"):
@@ -832,13 +833,15 @@ def show_main_platform():
             SIDEBAR = "#0a0e18"
             TEXT = "#b4d4f0"
             ACCENT = "#47aaff"
+            BORDER = "#1a3550"
 
             options = [
                 "Overview",
                 "Distribution",
                 "Correlation",
                 "Target Analysis",
-                "Missing Values"
+                "Missing Values",
+                "Bivariate Analysis"
             ]
 
             selection = st.segmented_control(
@@ -846,7 +849,7 @@ def show_main_platform():
                 options,
                 selection_mode="single",
                 default="Overview",
-                label_visibility="collapsed"
+                label_visibility="collapsed",
             )
 
             if selection == "Overview":
@@ -1332,6 +1335,333 @@ def show_main_platform():
                     spine.set_alpha(0.3)
 
                 st.pyplot(fig)
+
+
+
+            elif selection == "Bivariate Analysis":
+
+                numeric_cols  = [c for c in df.select_dtypes(include=np.number).columns.tolist()]
+                cat_cols      = [c for c in df.select_dtypes(exclude=np.number).columns.tolist()]
+
+                analysis_type = st.selectbox(
+                    "Select Analysis Type",
+                    options=[
+                        "Continuous vs Continuous",
+                        "Categorical vs Continuous",
+                        "Categorical vs Categorical",
+                    ],
+                    index=None,
+                    placeholder="Select type",
+                )
+
+                if analysis_type == "Continuous vs Continuous":
+                    if len(numeric_cols) < 2:
+                        st.info("Need at least 2 numerical columns.")
+                    else:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            feat_x = st.selectbox("Select X (Continuous)", numeric_cols, key="biv_cc_x")
+                        with col2:
+                            feat_y = st.selectbox("Select Y (Continuous)", [c for c in numeric_cols if c != feat_x], key="biv_cc_y")
+
+                        if feat_x and feat_y:
+                            c1, c2 = st.columns(2)
+
+                            # 1. Scatter plot
+                            with c1:
+                                with st.container(border=True):
+                                    st.markdown(f"<p style='font-size:13px; color:{TEXT}; margin-bottom:4px;'>Scatter Plot</p>", unsafe_allow_html=True)
+                                    fig, ax = plt.subplots(figsize=(5,4), facecolor=BG)
+                                    ax.set_facecolor(SIDEBAR)
+                                    ax.scatter(df[feat_x], df[feat_y], color=ACCENT, alpha=0.5, s=30, edgecolors='none')
+                                    ax.set_xlabel(feat_x, color=TEXT, fontsize=10)
+                                    ax.set_ylabel(feat_y, color=TEXT, fontsize=10)
+                                    ax.tick_params(colors=TEXT)
+                                    for spine in ax.spines.values():
+                                        spine.set_edgecolor(BORDER)
+                                    ax.grid(color=BORDER, linestyle='--', linewidth=0.5, alpha=0.5)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                            # 2. Regression line plot
+                            with c2:
+                                with st.container(border=True):
+                                    st.markdown(f"<p style='font-size:13px; color:{TEXT}; margin-bottom:4px;'>Regression Line</p>", unsafe_allow_html=True)
+                                    fig, ax = plt.subplots(figsize=(5,4), facecolor=BG)
+                                    ax.set_facecolor(SIDEBAR)
+                                    clean = df[[feat_x, feat_y]].dropna()
+                                    ax.scatter(clean[feat_x], clean[feat_y], color=ACCENT, alpha=0.4, s=25, edgecolors='none')
+                                    m, b = np.polyfit(clean[feat_x], clean[feat_y], 1)
+                                    x_line = np.linspace(clean[feat_x].min(), clean[feat_x].max(), 200)
+                                    ax.plot(x_line, m*x_line+b, color='#ff6b6b', linewidth=2, label=f'y = {m:.2f}x + {b:.2f}')
+                                    ax.set_xlabel(feat_x, color=TEXT, fontsize=10)
+                                    ax.set_ylabel(feat_y, color=TEXT, fontsize=10)
+                                    ax.tick_params(colors=TEXT)
+                                    for spine in ax.spines.values():
+                                        spine.set_edgecolor(BORDER)
+                                    ax.grid(color=BORDER, linestyle='--', linewidth=0.5, alpha=0.5)
+                                    ax.legend(facecolor=SIDEBAR, edgecolor=BORDER, labelcolor=TEXT, fontsize=8)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                            c3, c4 = st.columns(2)
+
+                            # 3. Density (Hexbin) — below scatter
+                            with c3:
+                                with st.container(border=True):
+                                    st.markdown(f"<p style='font-size:13px; color:{TEXT}; margin-bottom:4px;'>Density (Hexbin)</p>", unsafe_allow_html=True)
+                                    fig, ax = plt.subplots(figsize=(5,4), facecolor=BG)
+                                    ax.set_facecolor(SIDEBAR)
+                                    hb = ax.hexbin(df[feat_x].dropna(), df[feat_y].dropna(), gridsize=25, cmap='Blues', mincnt=1)
+                                    cb = fig.colorbar(hb, ax=ax)
+                                    cb.ax.tick_params(colors=TEXT)
+                                    ax.set_xlabel(feat_x, color=TEXT, fontsize=10)
+                                    ax.set_ylabel(feat_y, color=TEXT, fontsize=10)
+                                    ax.tick_params(colors=TEXT)
+                                    for spine in ax.spines.values():
+                                        spine.set_edgecolor(BORDER)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                            # 4. Line plot — below regression
+                            with c4:
+                                with st.container(border=True):
+                                    st.markdown(f"<p style='font-size:13px; color:{TEXT}; margin-bottom:4px;'>Line Plot (sorted by X)</p>", unsafe_allow_html=True)
+                                    fig, ax = plt.subplots(figsize=(5,4), facecolor=BG)
+                                    ax.set_facecolor(SIDEBAR)
+                                    sorted_df = df[[feat_x, feat_y]].dropna().sort_values(feat_x)
+                                    ax.plot(sorted_df[feat_x], sorted_df[feat_y], color=ACCENT, linewidth=1, alpha=0.7)
+                                    ax.set_xlabel(feat_x, color=TEXT, fontsize=10)
+                                    ax.set_ylabel(feat_y, color=TEXT, fontsize=10)
+                                    ax.tick_params(colors=TEXT)
+                                    for spine in ax.spines.values():
+                                        spine.set_edgecolor(BORDER)
+                                    ax.grid(color=BORDER, linestyle='--', linewidth=0.5, alpha=0.5)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                            # 5. Correlation summary — full width below all 4 plots
+                            with st.container(border=True):
+                                corr_val = df[[feat_x, feat_y]].dropna().corr().iloc[0,1]
+                                strength  = "Strong" if abs(corr_val) > 0.7 else "Moderate" if abs(corr_val) > 0.4 else "Weak"
+                                direction = "Positive" if corr_val > 0 else "Negative"
+                                color     = "#44dd88" if abs(corr_val) > 0.7 else ACCENT if abs(corr_val) > 0.4 else "#ff6b6b"
+                                r2        = corr_val ** 2
+                                st.markdown(
+                                    f"<div style='display:flex; align-items:center; justify-content:space-around; padding:16px 24px;'>"
+                                    f"<div style='text-align:center;'>"
+                                    f"<p style='font-size:32px; font-weight:bold; color:{color}; margin:0;'>{corr_val:.3f}</p>"
+                                    f"<p style='color:{TEXT}; font-size:12px; margin:4px 0 0 0;'>Pearson Correlation (r)</p>"
+                                    f"</div>"
+                                    f"<div style='text-align:center;'>"
+                                    f"<p style='font-size:32px; font-weight:bold; color:{color}; margin:0;'>{r2:.3f}</p>"
+                                    f"<p style='color:{TEXT}; font-size:12px; margin:4px 0 0 0;'>R² Score</p>"
+                                    f"</div>"
+                                    f"<div style='text-align:center;'>"
+                                    f"<p style='font-size:18px; font-weight:bold; color:{color}; margin:0;'>{strength} {direction}</p>"
+                                    f"<p style='color:{TEXT}; font-size:12px; margin:4px 0 0 0;'>Relationship</p>"
+                                    f"</div>"
+                                    f"<div style='text-align:center;'>"
+                                    f"<p style='font-size:18px; font-weight:bold; color:{TEXT}; margin:0;'>y = {m:.2f}x + {b:.2f}</p>"
+                                    f"<p style='color:{TEXT}; font-size:12px; margin:4px 0 0 0;'>Regression Equation</p>"
+                                    f"</div>"
+                                    f"</div>",
+                                    unsafe_allow_html=True,
+                                )
+
+                elif analysis_type == "Categorical vs Continuous":
+                    if not cat_cols:
+                        st.info("No categorical columns found.")
+                    elif len(numeric_cols) == 0:
+                        st.info("No numerical columns found.")
+                    else:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            feat_cat = st.selectbox("Select Categorical Feature", cat_cols, key="biv_catcon_cat")
+                        with col2:
+                            feat_num = st.selectbox("Select Continuous Feature", numeric_cols, key="biv_catcon_num")
+
+                        if feat_cat and feat_num:
+                            # limit categories to top 10 to avoid clutter
+                            top_cats = df[feat_cat].value_counts().nlargest(10).index
+                            df_filtered = df[df[feat_cat].isin(top_cats)]
+
+                            c1, c2 = st.columns(2)
+
+                            # 1. Box plot
+                            with c1:
+                                with st.container(border=True):
+                                    st.markdown(f"<p style='font-size:13px; color:{TEXT}; margin-bottom:4px;'>Box Plot</p>", unsafe_allow_html=True)
+                                    fig, ax = plt.subplots(figsize=(5,4), facecolor=BG)
+                                    ax.set_facecolor(SIDEBAR)
+                                    groups = [df_filtered[df_filtered[feat_cat]==c][feat_num].dropna().values for c in top_cats]
+                                    bp = ax.boxplot(groups, patch_artist=True, labels=top_cats)
+                                    colors_list = plt.cm.get_cmap('tab10', len(top_cats))
+                                    for patch, i in zip(bp['boxes'], range(len(top_cats))):
+                                        patch.set_facecolor(colors_list(i))
+                                        patch.set_alpha(0.7)
+                                    for whisker in bp['whiskers']: whisker.set_color(TEXT)
+                                    for cap in bp['caps']: cap.set_color(TEXT)
+                                    ax.set_ylabel(feat_num, color=TEXT, fontsize=10)
+                                    ax.tick_params(colors=TEXT, labelsize=8)
+                                    plt.xticks(rotation=30, ha='right')
+                                    for spine in ax.spines.values(): spine.set_edgecolor(BORDER)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                            # 2. Violin plot
+                            with c2:
+                                with st.container(border=True):
+                                    st.markdown(f"<p style='font-size:13px; color:{TEXT}; margin-bottom:4px;'>Violin Plot</p>", unsafe_allow_html=True)
+                                    fig, ax = plt.subplots(figsize=(5,4), facecolor=BG)
+                                    ax.set_facecolor(SIDEBAR)
+                                    groups = [df_filtered[df_filtered[feat_cat]==c][feat_num].dropna().values for c in top_cats]
+                                    groups = [g for g in groups if len(g) > 1]
+                                    if groups:
+                                        vp = ax.violinplot(groups, showmedians=True)
+                                        for body in vp['bodies']:
+                                            body.set_facecolor(ACCENT)
+                                            body.set_alpha(0.6)
+                                        vp['cmedians'].set_color('#ff6b6b')
+                                    ax.set_xticks(range(1, len(top_cats)+1))
+                                    ax.set_xticklabels(top_cats, rotation=30, ha='right', fontsize=8)
+                                    ax.set_ylabel(feat_num, color=TEXT, fontsize=10)
+                                    ax.tick_params(colors=TEXT)
+                                    for spine in ax.spines.values(): spine.set_edgecolor(BORDER)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                            c3, c4 = st.columns(2)
+
+                            # 3. Bar plot (mean per category)
+                            with c3:
+                                with st.container(border=True):
+                                    st.markdown(f"<p style='font-size:13px; color:{TEXT}; margin-bottom:4px;'>Mean {feat_num} per Category</p>", unsafe_allow_html=True)
+                                    fig, ax = plt.subplots(figsize=(5,4), facecolor=BG)
+                                    ax.set_facecolor(SIDEBAR)
+                                    means = df_filtered.groupby(feat_cat)[feat_num].mean().reindex(top_cats)
+                                    bars = ax.bar(top_cats, means, color=ACCENT, alpha=0.8, edgecolor=BORDER)
+                                    ax.set_ylabel(f"Mean {feat_num}", color=TEXT, fontsize=10)
+                                    ax.tick_params(colors=TEXT, labelsize=8)
+                                    plt.xticks(rotation=30, ha='right')
+                                    for spine in ax.spines.values(): spine.set_edgecolor(BORDER)
+                                    ax.grid(color=BORDER, linestyle='--', linewidth=0.5, alpha=0.5, axis='y')
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                            # 4. Strip plot
+                            with c4:
+                                with st.container(border=True):
+                                    st.markdown(f"<p style='font-size:13px; color:{TEXT}; margin-bottom:4px;'>Strip Plot</p>", unsafe_allow_html=True)
+                                    fig, ax = plt.subplots(figsize=(5,4), facecolor=BG)
+                                    ax.set_facecolor(SIDEBAR)
+                                    cmap = plt.cm.get_cmap('tab10', len(top_cats))
+                                    for i, cat in enumerate(top_cats):
+                                        vals = df_filtered[df_filtered[feat_cat]==cat][feat_num].dropna().values
+                                        jitter = np.random.uniform(-0.15, 0.15, size=len(vals))
+                                        ax.scatter(np.full(len(vals), i) + jitter, vals, color=cmap(i), alpha=0.5, s=15)
+                                    ax.set_xticks(range(len(top_cats)))
+                                    ax.set_xticklabels(top_cats, rotation=30, ha='right', fontsize=8)
+                                    ax.set_ylabel(feat_num, color=TEXT, fontsize=10)
+                                    ax.tick_params(colors=TEXT)
+                                    for spine in ax.spines.values(): spine.set_edgecolor(BORDER)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                elif analysis_type == "Categorical vs Categorical":
+                    if len(cat_cols) < 2:
+                        st.info("Need at least 2 categorical columns.")
+                    else:
+                        col1, col2 = st.columns(2)
+                        with col1:
+                            feat_cat1 = st.selectbox("Select First Categorical", cat_cols, key="biv_cc1")
+                        with col2:
+                            feat_cat2 = st.selectbox("Select Second Categorical", [c for c in cat_cols if c != feat_cat1], key="biv_cc2")
+
+                        if feat_cat1 and feat_cat2:
+                            top_cat1 = df[feat_cat1].value_counts().nlargest(8).index
+                            top_cat2 = df[feat_cat2].value_counts().nlargest(8).index
+                            df_filtered = df[df[feat_cat1].isin(top_cat1) & df[feat_cat2].isin(top_cat2)]
+
+                            c1, c2 = st.columns(2)
+
+                            # 1. Grouped bar chart
+                            with c1:
+                                with st.container(border=True):
+                                    st.markdown(f"<p style='font-size:13px; color:{TEXT}; margin-bottom:4px;'>Grouped Bar Chart</p>", unsafe_allow_html=True)
+                                    fig, ax = plt.subplots(figsize=(5,4), facecolor=BG)
+                                    ax.set_facecolor(SIDEBAR)
+                                    ct = pd.crosstab(df_filtered[feat_cat1], df_filtered[feat_cat2])
+                                    ct.plot(kind='bar', ax=ax, colormap='tab10', edgecolor='none', alpha=0.85)
+                                    ax.set_xlabel(feat_cat1, color=TEXT, fontsize=10)
+                                    ax.set_ylabel("Count", color=TEXT, fontsize=10)
+                                    ax.tick_params(colors=TEXT, labelsize=8)
+                                    plt.xticks(rotation=30, ha='right')
+                                    legend = ax.legend(title=feat_cat2, facecolor=SIDEBAR, edgecolor=BORDER, labelcolor=TEXT, fontsize=7)
+                                    legend.get_title().set_color(TEXT)
+                                    for spine in ax.spines.values(): spine.set_edgecolor(BORDER)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                            # 2. Stacked bar chart
+                            with c2:
+                                with st.container(border=True):
+                                    st.markdown(f"<p style='font-size:13px; color:{TEXT}; margin-bottom:4px;'>Stacked Bar Chart</p>", unsafe_allow_html=True)
+                                    fig, ax = plt.subplots(figsize=(5,4), facecolor=BG)
+                                    ax.set_facecolor(SIDEBAR)
+                                    ct_norm = ct.div(ct.sum(axis=1), axis=0)
+                                    ct_norm.plot(kind='bar', stacked=True, ax=ax, colormap='tab10', edgecolor='none', alpha=0.85)
+                                    ax.set_xlabel(feat_cat1, color=TEXT, fontsize=10)
+                                    ax.set_ylabel("Proportion", color=TEXT, fontsize=10)
+                                    ax.tick_params(colors=TEXT, labelsize=8)
+                                    plt.xticks(rotation=30, ha='right')
+                                    legend = ax.legend(title=feat_cat2, facecolor=SIDEBAR, edgecolor=BORDER, labelcolor=TEXT, fontsize=7)
+                                    legend.get_title().set_color(TEXT)
+                                    for spine in ax.spines.values(): spine.set_edgecolor(BORDER)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                            c3, c4 = st.columns(2)
+
+                            # 3. Heatmap (crosstab)
+                            with c3:
+                                with st.container(border=True):
+                                    st.markdown(f"<p style='font-size:13px; color:{TEXT}; margin-bottom:4px;'>Frequency Heatmap</p>", unsafe_allow_html=True)
+                                    fig, ax = plt.subplots(figsize=(5,4), facecolor=BG)
+                                    ax.set_facecolor(SIDEBAR)
+                                    im = ax.imshow(ct.values, cmap='Blues', aspect='auto')
+                                    ax.set_xticks(range(len(ct.columns)))
+                                    ax.set_yticks(range(len(ct.index)))
+                                    ax.set_xticklabels(ct.columns, rotation=30, ha='right', color=TEXT, fontsize=8)
+                                    ax.set_yticklabels(ct.index, color=TEXT, fontsize=8)
+                                    for i in range(ct.shape[0]):
+                                        for j in range(ct.shape[1]):
+                                            ax.text(j, i, ct.values[i,j], ha='center', va='center', fontsize=9, color=TEXT)
+                                    cb = fig.colorbar(im, ax=ax)
+                                    cb.ax.tick_params(colors=TEXT)
+                                    for spine in ax.spines.values(): spine.set_edgecolor(BORDER)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
+
+                            # 4. Mosaic-style bubble chart
+                            with c4:
+                                with st.container(border=True):
+                                    st.markdown(f"<p style='font-size:13px; color:{TEXT}; margin-bottom:4px;'>Bubble Chart (Frequency)</p>", unsafe_allow_html=True)
+                                    fig, ax = plt.subplots(figsize=(5,4), facecolor=BG)
+                                    ax.set_facecolor(SIDEBAR)
+                                    cmap = plt.cm.get_cmap('tab10', len(top_cat2))
+                                    for i, c1_val in enumerate(top_cat1):
+                                        for j, c2_val in enumerate(top_cat2):
+                                            count = ct.loc[c1_val, c2_val] if c1_val in ct.index and c2_val in ct.columns else 0
+                                            ax.scatter(j, i, s=count*10+10, color=cmap(j), alpha=0.7, edgecolors=BORDER, linewidth=0.5)
+                                    ax.set_xticks(range(len(top_cat2)))
+                                    ax.set_yticks(range(len(top_cat1)))
+                                    ax.set_xticklabels(top_cat2, rotation=30, ha='right', color=TEXT, fontsize=8)
+                                    ax.set_yticklabels(top_cat1, color=TEXT, fontsize=8)
+                                    ax.tick_params(colors=TEXT)
+                                    for spine in ax.spines.values(): spine.set_edgecolor(BORDER)
+                                    plt.tight_layout()
+                                    st.pyplot(fig)
             
     with tab2b:
         if st.session_state.data is None:
