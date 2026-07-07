@@ -6,7 +6,7 @@ import seaborn as sns
 import matplotlib as mpl
 import io
 from sklearn.decomposition import PCA
-from ucimlrepo import fetch_ucirepo
+import glob
 from ml_models.log_reg import logistic_regression
 from ml_models.lin_reg import linear_regression
 from ml_models.ran_for import random_forest_classifier
@@ -35,6 +35,9 @@ if "user_name" not in st.session_state:
 
 if "logged_in" not in st.session_state:
     st.session_state.logged_in = False
+
+if "cleaning_result" not in st.session_state:
+    st.session_state.cleaning_result = None
 
 if "y_pred_prob" not in st.session_state:
     st.session_state.y_pred_prob = None
@@ -485,20 +488,35 @@ def show_main_platform():
     )
 
     if select_method == 'Classification':
-        preset_ds_opts = ('Iris', 'Heart Disease')
+        folder = os.path.join(BASE_DIR, "datasets", "classification")
     elif select_method == 'Regression':
-        preset_ds_opts = ('Auto MPG', 'Concrete Compressive Strength')
+        folder = os.path.join(BASE_DIR, "datasets", "regression")
     else:
-        preset_ds_opts = ('Iris', 'Heart Disease', 'Auto MPG', 'Concrete Compressive Strength')
+        folder = None
+
+    if folder and os.path.exists(folder):
+        files = sorted(
+            glob.glob(os.path.join(folder, "*.csv"))+ 
+            glob.glob(os.path.join(folder, "*.xls")) +
+            glob.glob(os.path.join(folder, "*.xlsx"))
+            )
+        preset_ds_opts = tuple(
+            os.path.splitext(os.path.basename(f))[0].replace("_", " ").title()
+            for f in files
+        )
+    else:
+        preset_ds_opts = ()
 
     dataset_select = st.sidebar.selectbox(
         label       = 'Select the dataset',
-        options     = preset_ds_opts,
+        options     = preset_ds_opts if preset_ds_opts else ['—'],
         index       = None,
         placeholder = "Select",
         disabled    = has_upload,
         key         = "dataset_select_widget"
     )
+    if dataset_select == '—':
+        dataset_select = None
 
     has_preset = (
         dataset_select is not None
@@ -553,6 +571,7 @@ def show_main_platform():
             st.session_state.last_upload_name = uploaded_file.name
             st.session_state.data             = raw_df
             st.session_state.eda_selection    = "Overview"
+            st.session_state.cleaning_result  = None
             st.rerun()
     elif st.session_state.uploaded_df is not None:
         # file removed — reset
@@ -560,6 +579,7 @@ def show_main_platform():
         st.session_state.upload_detected  = None
         st.session_state.last_upload_name = None
         st.session_state.data             = None
+        st.session_state.cleaning_result  = None
         st.rerun()
 
     # re-read flag after potential rerun
@@ -610,6 +630,7 @@ def show_main_platform():
 
     def switch_to_tab(tab_name):
         st.session_state.my_tabs = tab_name
+        st.session_state.trigger_tab_switch = True
 
     def themed_dataframe(df):
         styled_df = df.style.set_properties(**{
@@ -666,7 +687,26 @@ def show_main_platform():
             hide_index=True
         )
 
-    tab1, tab2, tab2b, tab3, tab4, tab5 = st.tabs(["Dataset", "EDA", "Data Cleaning", "Model results", "Visualisation", "Description"], )
+    tab1, tab2, tab2b, tab3, tab4, tab5 = st.tabs(["Dataset", "EDA", "Data Cleaning", "Model results", "Visualisation", "Description"] )
+    
+    if st.session_state.get("trigger_tab_switch"):
+        target = st.session_state.my_tabs
+        components.html(f"""
+        <script>
+        setTimeout(function() {{
+            const doc = window.parent.document;
+            const tabs = doc.querySelectorAll('button[data-baseweb="tab"]');
+            tabs.forEach(function(tab) {{
+                if (tab.innerText.trim() === "{target}") {{
+                    tab.click();
+                }}
+            }});
+        }}, 200);
+        </script>
+        """, height=0)
+        st.session_state.trigger_tab_switch = False
+    
+    
     with tab1:
         if dataset_select is not None:
             if st.session_state.get("last_dataset") != dataset_select:
@@ -674,6 +714,7 @@ def show_main_platform():
                 st.session_state.last_dataset = dataset_select
                 st.session_state.data = None
                 st.session_state.eda_selection   = "Overview"
+                st.session_state.cleaning_result = None
                 st.rerun()
 
         if st.session_state.get("loading_dataset"):
@@ -683,26 +724,28 @@ def show_main_platform():
             st.markdown("<p style='color:#47aaff; font-family:Courier New; letter-spacing:0.1em;'>LOADING DATASET...</p>", unsafe_allow_html=True)
             components.html(book_content, height=220, scrolling=False)
 
-            dataset = st.session_state.last_dataset
-            if dataset == "Iris":
-                iris = fetch_ucirepo(id=53)
-                df = pd.DataFrame(data=iris.data.features)
-                df['target'] = iris.data.targets
-            elif dataset == "Heart Disease":
-                heart_disease = fetch_ucirepo(id=45)
-                df = pd.DataFrame(data=heart_disease.data.features)
-                df['target'] = heart_disease.data.targets
-            elif dataset == "Auto MPG":
-                auto_mpg = fetch_ucirepo(id=9)
-                df = pd.DataFrame(data=auto_mpg.data.features)
-                df['target'] = auto_mpg.data.targets
-            elif dataset == "Concrete Compressive Strength":
-                concrete = fetch_ucirepo(id=165)
-                df = pd.DataFrame(data=concrete.data.features)
-                df['target'] = concrete.data.targets
+            dataset_name = st.session_state.last_dataset
+            # convert display name back to filename
+            filename = dataset_name.lower().replace(" ", "_") + ".csv"
 
-            df = clean_dataset(df)
-            st.session_state.data = df
+            # search in both folders
+            filepath = None
+            for subfolder in ["classification", "regression"]:
+                candidate = os.path.join(BASE_DIR, "datasets", subfolder, filename)
+                if os.path.exists(candidate):
+                    filepath = candidate
+                    break
+
+            if filepath:
+                df = pd.read_csv(filepath)
+                if "target" not in df.columns:
+                    df = df.rename(columns={df.columns[-1]: "target"})
+                df = clean_dataset(df)
+                st.write(f"After cleaning shape: {df.shape}")
+                st.session_state.data = df
+            else:
+                st.error(f"Dataset file not found: {filename}")
+
             st.session_state.loading_dataset = False
             st.rerun()
 
@@ -1910,12 +1953,23 @@ def show_main_platform():
                 st.session_state.data = df_clean
                 new_shape = df_clean.shape
 
-                # ── result card ───────────────────────────────────────────────
-                st.markdown("<br>", unsafe_allow_html=True)
-                rows_removed   = original_shape[0] - new_shape[0]
-                cols_removed   = original_shape[1] - new_shape[1]
-                missing_after  = df_clean.isnull().sum().sum()
+                # ── stash the result summary so it survives the rerun ────────
+                st.session_state.cleaning_result = {
+                    "original_shape": original_shape,
+                    "new_shape": new_shape,
+                    "rows_removed": original_shape[0] - new_shape[0],
+                    "cols_removed": original_shape[1] - new_shape[1],
+                    "missing_after": int(df_clean.isnull().sum().sum()),
+                }
 
+                # ── force a rerun so Dataset tab sees the cleaned data ───────
+                st.rerun()
+
+            # ── result card (OUTSIDE `if apply:` — renders on every run) ────
+            if st.session_state.get("cleaning_result"):
+                r = st.session_state.cleaning_result
+
+                st.markdown("<br>", unsafe_allow_html=True)
                 st.markdown(
                     "<p style='color:#44dd88; font-family:Courier New; font-size:15px;"
                     "font-weight:bold; letter-spacing:0.08em; margin-bottom:6px;'>"
@@ -1924,16 +1978,16 @@ def show_main_platform():
                 )
 
                 result_items = [
-                    ("Original Shape", f"{original_shape[0]} × {original_shape[1]}"),
-                    ("New Shape",      f"{new_shape[0]} × {new_shape[1]}"),
-                    ("Rows Removed",   rows_removed),
-                    ("Cols Removed",   cols_removed),
-                    ("Missing Values", missing_after),
+                    ("Original Shape", f"{r['original_shape'][0]} × {r['original_shape'][1]}"),
+                    ("New Shape",      f"{r['new_shape'][0]} × {r['new_shape'][1]}"),
+                    ("Rows Removed",   r["rows_removed"]),
+                    ("Cols Removed",   r["cols_removed"]),
+                    ("Missing Values", r["missing_after"]),
                 ]
 
                 rows_html = ""
                 for label, value in result_items:
-                    color = "#ff6b6b" if (label in ("Missing Values",) and value > 0) else "#44dd88" if label in ("Original Shape","New Shape") else TEXT
+                    color = "#ff6b6b" if (label == "Missing Values" and value > 0) else "#44dd88" if label in ("Original Shape", "New Shape") else TEXT
                     rows_html += (
                         f"<tr>"
                         f"<td style='padding:5px 16px; color:{TEXT}; font-family:Courier New; font-size:13px;'>{label}</td>"
@@ -1977,156 +2031,174 @@ def show_main_platform():
                     unsafe_allow_html=True,
                 )
             else:
+
+                non_numeric_selected = (
+                    st.session_state.data[selected_features]
+                    .select_dtypes(exclude=np.number)
+                    .columns.tolist()
+                )
+
+                if non_numeric_selected:
+                    st.markdown(
+                        f"<div style='margin-top:10px; padding:10px 14px; border-radius:6px;"
+                        f"border:1px solid #ff6b6b; background:#0a0e18;'>"
+                        f"<p style='color:#ff6b6b; font-family:Courier New; font-size:13px; margin:0;'>"
+                        f"⚠️ These selected features are not numeric: <b>{non_numeric_selected}</b>. "
+                        f"Please encode them in the <b>Data Cleaning</b> tab before training."
+                        f"</p></div>",
+                        unsafe_allow_html=True,
+                    )
+                else:
            
-                if(model_select=='Logistic Regression'):
-                    classification_report,  y_pred_prob, y_test, y, y_pred= logistic_regression(st.session_state.data, selected_features, selected_target)
-                    st.session_state.y_test = y_test 
-                    st.session_state.y_pred_prob = y_pred_prob
-                    st.session_state.y=y
-                    st.session_state.y_pred =y_pred
-                    classification_dataframe = pd.DataFrame(classification_report).transpose()
-                    accuracy = classification_dataframe.loc["accuracy","precision"]
-                    classification_dataframe.drop(index=["accuracy"], inplace=True)
-                    classification_dataframe.rename(columns={
-                        'precision': 'Precision',
-                        'recall': 'Recall',
-                        'f1-score': 'F1-Score',
-                        'support': 'Support'
-                    }, inplace=True)
-                    classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
-                    themed_dataframe(classification_dataframe)
-                    st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
+                    if(model_select=='Logistic Regression'):
+                        classification_report,  y_pred_prob, y_test, y, y_pred= logistic_regression(st.session_state.data, selected_features, selected_target)
+                        st.session_state.y_test = y_test 
+                        st.session_state.y_pred_prob = y_pred_prob
+                        st.session_state.y=y
+                        st.session_state.y_pred =y_pred
+                        classification_dataframe = pd.DataFrame(classification_report).transpose()
+                        accuracy = classification_dataframe.loc["accuracy","precision"]
+                        classification_dataframe.drop(index=["accuracy"], inplace=True)
+                        classification_dataframe.rename(columns={
+                            'precision': 'Precision',
+                            'recall': 'Recall',
+                            'f1-score': 'F1-Score',
+                            'support': 'Support'
+                        }, inplace=True)
+                        classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
+                        themed_dataframe(classification_dataframe)
+                        st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
-                if(model_select=='Random Forest'):
-                    classification_report,  y_pred_prob, y_test, y, y_pred= random_forest_classifier(st.session_state.data, selected_features, selected_target)
-                    st.session_state.y_test = y_test 
-                    st.session_state.y_pred_prob = y_pred_prob
-                    st.session_state.y=y
-                    st.session_state.y_pred=y_pred
-                    classification_dataframe = pd.DataFrame(classification_report).transpose()
-                    accuracy = classification_dataframe.loc["accuracy","precision"]
-                    classification_dataframe.drop(index=["accuracy"], inplace=True)
-                    classification_dataframe.rename(columns={
-                        'precision': 'Precision',
-                        'recall': 'Recall',
-                        'f1-score': 'F1-Score',
-                        'support': 'Support'
-                    }, inplace=True)
-                    classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
-                    themed_dataframe(classification_dataframe)
-                    st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
+                    if(model_select=='Random Forest'):
+                        classification_report,  y_pred_prob, y_test, y, y_pred= random_forest_classifier(st.session_state.data, selected_features, selected_target)
+                        st.session_state.y_test = y_test 
+                        st.session_state.y_pred_prob = y_pred_prob
+                        st.session_state.y=y
+                        st.session_state.y_pred=y_pred
+                        classification_dataframe = pd.DataFrame(classification_report).transpose()
+                        accuracy = classification_dataframe.loc["accuracy","precision"]
+                        classification_dataframe.drop(index=["accuracy"], inplace=True)
+                        classification_dataframe.rename(columns={
+                            'precision': 'Precision',
+                            'recall': 'Recall',
+                            'f1-score': 'F1-Score',
+                            'support': 'Support'
+                        }, inplace=True)
+                        classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
+                        themed_dataframe(classification_dataframe)
+                        st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
-                if(model_select=='Support Vector Machine'):
-                    classification_report,  y_pred_prob, y_test, y, y_pred= support_vector_machine(st.session_state.data, selected_features, selected_target)
-                    st.session_state.y_test = y_test 
-                    st.session_state.y_pred_prob = y_pred_prob
-                    st.session_state.y=y
-                    st.session_state.y_pred=y_pred
-                    classification_dataframe = pd.DataFrame(classification_report).transpose()
-                    accuracy = classification_dataframe.loc["accuracy","precision"]
-                    classification_dataframe.drop(index=["accuracy"], inplace=True)
-                    classification_dataframe.rename(columns={
-                        'precision': 'Precision',
-                        'recall': 'Recall',
-                        'f1-score': 'F1-Score',
-                        'support': 'Support'
-                    }, inplace=True)
-                    classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
-                    themed_dataframe(classification_dataframe)
-                    st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
+                    if(model_select=='Support Vector Machine'):
+                        classification_report,  y_pred_prob, y_test, y, y_pred= support_vector_machine(st.session_state.data, selected_features, selected_target)
+                        st.session_state.y_test = y_test 
+                        st.session_state.y_pred_prob = y_pred_prob
+                        st.session_state.y=y
+                        st.session_state.y_pred=y_pred
+                        classification_dataframe = pd.DataFrame(classification_report).transpose()
+                        accuracy = classification_dataframe.loc["accuracy","precision"]
+                        classification_dataframe.drop(index=["accuracy"], inplace=True)
+                        classification_dataframe.rename(columns={
+                            'precision': 'Precision',
+                            'recall': 'Recall',
+                            'f1-score': 'F1-Score',
+                            'support': 'Support'
+                        }, inplace=True)
+                        classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
+                        themed_dataframe(classification_dataframe)
+                        st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
-                if(model_select=='Naive Bayes'):
-                    classification_report,  y_pred_prob, y_test, y, y_pred= naive_bayes(st.session_state.data, selected_features, selected_target)
-                    st.session_state.y_test = y_test 
-                    st.session_state.y_pred_prob = y_pred_prob
-                    st.session_state.y=y
-                    st.session_state.y_pred=y_pred
-                    classification_dataframe = pd.DataFrame(classification_report).transpose()
-                    accuracy = classification_dataframe.loc["accuracy","precision"]
-                    classification_dataframe.drop(index=["accuracy"], inplace=True)
-                    classification_dataframe.rename(columns={
-                        'precision': 'Precision',
-                        'recall': 'Recall',
-                        'f1-score': 'F1-Score',
-                        'support': 'Support'
-                    }, inplace=True)
-                    classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
-                    themed_dataframe(classification_dataframe)
-                    st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
+                    if(model_select=='Naive Bayes'):
+                        classification_report,  y_pred_prob, y_test, y, y_pred= naive_bayes(st.session_state.data, selected_features, selected_target)
+                        st.session_state.y_test = y_test 
+                        st.session_state.y_pred_prob = y_pred_prob
+                        st.session_state.y=y
+                        st.session_state.y_pred=y_pred
+                        classification_dataframe = pd.DataFrame(classification_report).transpose()
+                        accuracy = classification_dataframe.loc["accuracy","precision"]
+                        classification_dataframe.drop(index=["accuracy"], inplace=True)
+                        classification_dataframe.rename(columns={
+                            'precision': 'Precision',
+                            'recall': 'Recall',
+                            'f1-score': 'F1-Score',
+                            'support': 'Support'
+                        }, inplace=True)
+                        classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
+                        themed_dataframe(classification_dataframe)
+                        st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
-                if(model_select=='K-Nearest Neighbors'):
-                    classification_report,  y_pred_prob, y_test, y, y_pred= k_neighbor(st.session_state.data, selected_features, selected_target)
-                    st.session_state.y_test = y_test 
-                    st.session_state.y_pred_prob = y_pred_prob
-                    st.session_state.y=y
-                    st.session_state.y_pred=y_pred
-                    classification_dataframe = pd.DataFrame(classification_report).transpose()
-                    accuracy = classification_dataframe.loc["accuracy","precision"]
-                    classification_dataframe.drop(index=["accuracy"], inplace=True)
-                    classification_dataframe.rename(columns={
-                        'precision': 'Precision',
-                        'recall': 'Recall',
-                        'f1-score': 'F1-Score',
-                        'support': 'Support'
-                    }, inplace=True)
-                    classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
-                    themed_dataframe(classification_dataframe)
-                    st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
+                    if(model_select=='K-Nearest Neighbors'):
+                        classification_report,  y_pred_prob, y_test, y, y_pred= k_neighbor(st.session_state.data, selected_features, selected_target)
+                        st.session_state.y_test = y_test 
+                        st.session_state.y_pred_prob = y_pred_prob
+                        st.session_state.y=y
+                        st.session_state.y_pred=y_pred
+                        classification_dataframe = pd.DataFrame(classification_report).transpose()
+                        accuracy = classification_dataframe.loc["accuracy","precision"]
+                        classification_dataframe.drop(index=["accuracy"], inplace=True)
+                        classification_dataframe.rename(columns={
+                            'precision': 'Precision',
+                            'recall': 'Recall',
+                            'f1-score': 'F1-Score',
+                            'support': 'Support'
+                        }, inplace=True)
+                        classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
+                        themed_dataframe(classification_dataframe)
+                        st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
-                if(model_select=='Decision Tree'):
-                    classification_report,  y_pred_prob, y_test, y, y_pred= dec_tree(st.session_state.data, selected_features, selected_target)
-                    st.session_state.y_test = y_test 
-                    st.session_state.y_pred_prob = y_pred_prob
-                    st.session_state.y=y
-                    st.session_state.y_pred=y_pred
-                    classification_dataframe = pd.DataFrame(classification_report).transpose()
-                    accuracy = classification_dataframe.loc["accuracy","precision"]
-                    classification_dataframe.drop(index=["accuracy"], inplace=True)
-                    classification_dataframe.rename(columns={
-                        'precision': 'Precision',
-                        'recall': 'Recall',
-                        'f1-score': 'F1-Score',
-                        'support': 'Support'
-                    }, inplace=True)
-                    classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
-                    themed_dataframe(classification_dataframe)
-                    st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
+                    if(model_select=='Decision Tree'):
+                        classification_report,  y_pred_prob, y_test, y, y_pred= dec_tree(st.session_state.data, selected_features, selected_target)
+                        st.session_state.y_test = y_test 
+                        st.session_state.y_pred_prob = y_pred_prob
+                        st.session_state.y=y
+                        st.session_state.y_pred=y_pred
+                        classification_dataframe = pd.DataFrame(classification_report).transpose()
+                        accuracy = classification_dataframe.loc["accuracy","precision"]
+                        classification_dataframe.drop(index=["accuracy"], inplace=True)
+                        classification_dataframe.rename(columns={
+                            'precision': 'Precision',
+                            'recall': 'Recall',
+                            'f1-score': 'F1-Score',
+                            'support': 'Support'
+                        }, inplace=True)
+                        classification_dataframe = classification_dataframe.reset_index().rename(columns={'index': 'Class'})
+                        themed_dataframe(classification_dataframe)
+                        st.metric(label="Model accuracy", value=np.round(accuracy, decimals=2))
 
-                if(model_select=='Linear Regression'):
-                    metrics, pca_data= linear_regression(st.session_state.data, selected_features, selected_target)
-                    st.session_state.pca_data = pca_data
-                    themed_dataframe(metrics)
-
-
-                if(model_select=='Decision Tree Regression'):
-                    metrics, pca_data= dec_tree_reg(st.session_state.data, selected_features, selected_target)
-                    st.session_state.pca_data = pca_data
-                    themed_dataframe(metrics)
+                    if(model_select=='Linear Regression'):
+                        metrics, pca_data= linear_regression(st.session_state.data, selected_features, selected_target)
+                        st.session_state.pca_data = pca_data
+                        themed_dataframe(metrics)
 
 
-                if(model_select=='Random Forest Regression'):
-                    metrics, pca_data= ran_for_reg(st.session_state.data, selected_features, selected_target)
-                    st.session_state.pca_data = pca_data
-                    themed_dataframe(metrics)
+                    if(model_select=='Decision Tree Regression'):
+                        metrics, pca_data= dec_tree_reg(st.session_state.data, selected_features, selected_target)
+                        st.session_state.pca_data = pca_data
+                        themed_dataframe(metrics)
 
 
-                if(model_select=='Ridge Regression'):
-                    metrics, pca_data= ridge_reg(st.session_state.data, selected_features, selected_target)
-                    st.session_state.pca_data = pca_data
-                    themed_dataframe(metrics)
+                    if(model_select=='Random Forest Regression'):
+                        metrics, pca_data= ran_for_reg(st.session_state.data, selected_features, selected_target)
+                        st.session_state.pca_data = pca_data
+                        themed_dataframe(metrics)
 
 
-                if(model_select=='Lasso Regression'):
-                    metrics, pca_data= lasso_reg(st.session_state.data, selected_features, selected_target)
-                    st.session_state.pca_data = pca_data
-                    themed_dataframe(metrics)
+                    if(model_select=='Ridge Regression'):
+                        metrics, pca_data= ridge_reg(st.session_state.data, selected_features, selected_target)
+                        st.session_state.pca_data = pca_data
+                        themed_dataframe(metrics)
 
 
-                if(model_select=='Support Vector Regression'):
-                    metrics, pca_data= svr(st.session_state.data, selected_features, selected_target)
-                    st.session_state.pca_data = pca_data
-                    themed_dataframe(metrics)
-                    
+                    if(model_select=='Lasso Regression'):
+                        metrics, pca_data= lasso_reg(st.session_state.data, selected_features, selected_target)
+                        st.session_state.pca_data = pca_data
+                        themed_dataframe(metrics)
+
+
+                    if(model_select=='Support Vector Regression'):
+                        metrics, pca_data= svr(st.session_state.data, selected_features, selected_target)
+                        st.session_state.pca_data = pca_data
+                        themed_dataframe(metrics)
+                        
             
     with tab4:
         if(select_method=='Classification'):
